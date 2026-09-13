@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 public struct QuickAddView: View {
     let onDismiss: () -> Void
     
@@ -126,6 +127,7 @@ public struct QuickAddView: View {
         }
     }
     
+    @MainActor
     private func saveNote(openFloating: Bool) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {

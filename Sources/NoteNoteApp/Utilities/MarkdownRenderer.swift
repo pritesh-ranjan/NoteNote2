@@ -335,6 +335,7 @@ public enum MarkdownRenderer {
     }
     
     // MARK: - Shortcut Toggling (Ctrl+B, Ctrl+I, Ctrl+U, etc.)
+    @MainActor
     public static func toggleFormatting(in textView: NSTextView, type: MarkdownFormattingType) {
         let selectedRange = textView.selectedRange()
         let text = textView.string as NSString

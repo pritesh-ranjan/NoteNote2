@@ -136,8 +136,10 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
                             context.duration = 0.18
                             panel.animator().alphaValue = 0.0
                         } completionHandler: {
-                            panel.orderOut(nil)
-                            panel.alphaValue = initialOpacity
+                            DispatchQueue.main.async {
+                                panel.orderOut(nil)
+                                panel.alphaValue = initialOpacity
+                            }
                         }
                     }
                 }

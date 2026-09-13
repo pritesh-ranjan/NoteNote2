@@ -59,9 +59,10 @@ if [ -f "${MOUNT_DIR}/.VolumeIcon.icns" ]; then
     SetFile -a C "${MOUNT_DIR}" 2>/dev/null || true
 fi
 
-# 6. Use AppleScript to set Finder window layout
-echo "📐 Configuring Finder window presentation..."
-osascript <<EOF || true
+# 6. Use AppleScript to set Finder window layout (interactive macOS only)
+if [ -z "$CI" ]; then
+    echo "📐 Configuring Finder window presentation..."
+    osascript <<EOF || true
 tell application "Finder"
     tell disk "${VOL_NAME}"
         open
@@ -82,6 +83,9 @@ tell application "Finder"
     end tell
 end tell
 EOF
+else
+    echo "⚡ Running in CI runner: skipping interactive Finder presentation styling..."
+fi
 
 # Ensure all changes are written
 sync
