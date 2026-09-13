@@ -1,0 +1,38 @@
+name: Build & Package
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Show Swift Version & Environment
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Build Application Bundle
+        run: |
+          chmod +x scripts/build_app.sh
+          ./scripts/build_app.sh
+
+      - name: Compress App Bundle
+        run: |
+          zip -r -y NoteNote.app.zip NoteNote.app
+
+      - name: Upload App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NoteNote-macOS-App
+          path: NoteNote.app.zip
+          retention-days: 14

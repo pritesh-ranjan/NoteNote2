@@ -1,0 +1,58 @@
+# ==========================================
+# macOS System Files
+# ==========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# ==========================================
+# Swift / Swift Package Manager
+# ==========================================
+.build/
+Packages/
+.swiftpm/
+
+# ==========================================
+# Xcode
+# ==========================================
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ==========================================
+# Application Build Outputs & Distribution
+# ==========================================
+NoteNote.app
+*.dmg
+temp_*.dmg
+.dmg_staging/
+
+# ==========================================
+# Logs, Temp Files, Backups
+# ==========================================
+*.log
+*.crash
+*~
+*.swp
+*.swo

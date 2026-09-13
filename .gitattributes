@@ -1,0 +1,18 @@
+# Auto-detect text files and perform LF normalization on checkout
+* text=auto eol=lf
+
+# Explicitly mark source files as text
+*.swift text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.plist text eol=lf
+*.json text eol=lf
+Makefile text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Declare binary files
+*.png binary
+*.icns binary
+*.dmg binary
+*.app binary
