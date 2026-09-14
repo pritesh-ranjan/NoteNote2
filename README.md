@@ -9,6 +9,10 @@ A lightweight, native, and silky-smooth sticky notes app for macOS built with **
 
 It lives directly in your menu bar with zero Dock clutter, stays visible above fullscreen apps, attaches notes to specific Mac apps, docks to screen edges, and protects private notes from screen shares.
 
+<p align="center">
+  <img src="docs/screenshots/hero_overview.png" alt="NoteNote for Mac Overview" width="900">
+</p>
+
 ---
 
 ## ✨ Features
@@ -27,6 +31,61 @@ It lives directly in your menu bar with zero Dock clutter, stays visible above f
 - 🔒 **Touch ID / Biometric Lock**: Protect confidential notes behind a frosted glass shield with Touch ID / passcode authentication.
 - 🗂️ **Layout Modes**: Free placement, Cascade Stack (`⌘⇧2`), or clean Grid Tile (`⌘⇧3`).
 - 🎨 **Curated Pastel & Glass Palette**: Sun Yellow, Pastel Rose, Fresh Mint, Sky Blue, Soft Lavender, Charcoal Dark, and Frosted Glass Acrylic.
+
+---
+
+## 📸 Screenshots & Highlights
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Interactive Checklists & Live Markdown</b><br>
+      <sub>Clickable checkboxes, live progress tracking, headers & formatted tasks</sub><br><br>
+      <img src="docs/screenshots/note_checklist.png" alt="Interactive Checklists" width="380"/>
+    </td>
+    <td width="50%" align="center">
+      <b>Touch ID & Biometric Protection</b><br>
+      <sub>Protect confidential notes behind a frosted shield with Touch ID</sub><br><br>
+      <img src="docs/screenshots/note_locked.png" alt="Touch ID Protection" width="380"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <b>Code Snippets & Developer Notes</b><br>
+      <sub>Inline code chips, syntax blocks, and instant debounced auto-save</sub><br><br>
+      <img src="docs/screenshots/note_code.png" alt="Code Snippets & Markdown" width="380"/>
+    </td>
+    <td width="50%" align="center">
+      <b>Curated Pastel & Glass Palette</b><br>
+      <sub>Sun Yellow, Pastel Rose, Fresh Mint, Lavender, Charcoal & Glass</sub><br><br>
+      <img src="docs/screenshots/note_palette.png" alt="Curated Palette" width="380"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <b>Spotlight Quick Add (⌘⇧N)</b><br>
+      <sub>Instant HUD capture anywhere across macOS with color presets</sub><br><br>
+      <img src="docs/screenshots/quickadd.png" alt="Quick Add Modal" width="380"/>
+    </td>
+    <td width="50%" align="center">
+      <b>First-Launch Onboarding</b><br>
+      <sub>Clean welcome guide introducing menu bar integration and shortcuts</sub><br><br>
+      <img src="docs/screenshots/welcome.png" alt="Welcome Onboarding" width="380"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <b>Charcoal Dark Theme</b><br>
+      <sub>High-contrast dark mode tailored for developers and terminal users</sub><br><br>
+      <img src="docs/screenshots/note_dark.png" alt="Charcoal Dark Theme" width="380"/>
+    </td>
+    <td width="50%" align="center">
+      <b>Native Preferences & Settings</b><br>
+      <sub>Startup configuration, screen privacy defaults, sounds & hotkeys</sub><br><br>
+      <img src="docs/screenshots/settings.png" alt="Preferences" width="380"/>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -92,6 +151,8 @@ NoteNote/
 ├── CONTRIBUTING.md             # Contribution, forking, and pull request guide
 ├── LICENSE                     # MIT License
 ├── README.md                   # Project overview & documentation
+├── docs/
+│   └── screenshots/            # Feature preview screenshots & hero banner
 ├── Resources/
 │   ├── Info.plist              # Menu bar accessory config (LSUIElement = true)
 │   ├── AppIcon.png
@@ -117,12 +178,13 @@ NoteNote/
     │   ├── StickyWindowManager.swift # Coordinator for active sticky panels
     │   ├── MenuBarController.swift   # NSStatusItem menu bar integration
     │   ├── QuickAddWindowController.swift # HUD capture modal
-    │   └── SettingsWindowController.swift # Preferences window
+    │   ├── SettingsWindowController.swift # Preferences window
+    │   └── WelcomeWindowController.swift  # First-launch onboarding modal
     ├── Views/
     │   ├── StickyNoteView.swift      # Main container view
     │   ├── NoteHeaderView.swift      # Drag bar, color picker, Touch ID lock, actions
     │   ├── NoteEditorView.swift      # Live markdown text editor & checklists
-    │   ├── NoteFormatBar.swift       # Bottom formatting toolbar & word count
+    │   ├── WelcomeView.swift         # Onboarding cards & startup toggle
     │   ├── DockTabHandleView.swift   # Collapsed edge dock pill tab
     │   ├── QuickAddView.swift        # HUD quick capture view
     │   ├── AppPickerSheet.swift      # Running macOS application selector

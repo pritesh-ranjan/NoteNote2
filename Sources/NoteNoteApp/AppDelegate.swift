@@ -37,6 +37,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Perform first launch setup (configure launch at startup and show welcome)
         StartupService.shared.performFirstLaunchSetupIfNeeded()
+        
+        if CommandLine.arguments.contains("--show-settings") {
+            SettingsWindowController.shared.show()
+        }
+        if CommandLine.arguments.contains("--show-quickadd") {
+            QuickAddWindowController.shared.show()
+        }
+        if CommandLine.arguments.contains("--show-welcome") {
+            WelcomeWindowController.shared.show()
+        }
     }
     
     public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
