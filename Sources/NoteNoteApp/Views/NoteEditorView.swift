@@ -168,7 +168,8 @@ public struct MacTextEditor: NSViewRepresentable {
         
         let contentSize = scrollView.contentSize
         let textStorage = NSTextStorage()
-        let layoutManager = NSLayoutManager()
+        let layoutManager = StickyLayoutManager()
+        layoutManager.noteColor = noteColor
         textStorage.addLayoutManager(layoutManager)
         
         let textContainer = NSTextContainer(containerSize: NSSize(width: contentSize.width, height: CGFloat.greatestFiniteMagnitude))
@@ -213,6 +214,9 @@ public struct MacTextEditor: NSViewRepresentable {
         
         let colorChanged = textView.noteColor != noteColor
         textView.noteColor = noteColor
+        if let lm = textView.layoutManager as? StickyLayoutManager {
+            lm.noteColor = noteColor
+        }
         
         let fontChanged = abs(textView.currentFontSize - CGFloat(fontSize)) >= 0.5
         if fontChanged {
@@ -244,8 +248,69 @@ public struct MacTextEditor: NSViewRepresentable {
     }
 }
 
-public final class StickyTextView: NSTextView {
+// MARK: - Custom Layout Manager for Multiline Code Blocks & Visual Elements
+public final class StickyLayoutManager: NSLayoutManager {
     public var noteColor: NoteColor = .yellow
+    
+    public override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
+        super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+        
+        guard let textStorage = self.textStorage else { return }
+        guard let textContainer = self.textContainers.first else { return }
+        
+        let charLength = (textStorage.string as NSString).length
+        guard charLength > 0 else { return }
+        
+        let isDark = noteColor.isDark
+        let codeCardBg = isDark
+            ? NSColor(white: 0.12, alpha: 0.78)
+            : NSColor(white: 0.0, alpha: 0.06)
+        let codeCardBorder = isDark
+            ? NSColor(white: 1.0, alpha: 0.12)
+            : NSColor(white: 0.0, alpha: 0.09)
+        
+        textStorage.enumerateAttribute(
+            MarkdownRenderer.codeBlockAttribute,
+            in: NSRange(location: 0, length: charLength),
+            options: []
+        ) { value, range, _ in
+            guard value != nil else { return }
+            
+            let glyphRange = self.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            guard glyphRange.length > 0 else { return }
+            
+            let inter = NSIntersectionRange(glyphRange, glyphsToShow)
+            guard inter.length > 0 else { return }
+            
+            let blockRect = self.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            
+            let containerWidth = textContainer.size.width
+            let cardX: CGFloat = 2.0
+            let cardWidth = max(60, containerWidth - 4.0)
+            let cardY = origin.y + blockRect.origin.y - 2.0
+            let cardHeight = blockRect.size.height + 4.0
+            
+            let cardRect = NSRect(x: cardX, y: cardY, width: cardWidth, height: cardHeight)
+            let path = NSBezierPath(roundedRect: cardRect, xRadius: 6, yRadius: 6)
+            
+            codeCardBg.setFill()
+            path.fill()
+            
+            codeCardBorder.setStroke()
+            path.lineWidth = 1.0
+            path.stroke()
+        }
+    }
+}
+
+public final class StickyTextView: NSTextView {
+    public var noteColor: NoteColor = .yellow {
+        didSet {
+            if let lm = self.layoutManager as? StickyLayoutManager {
+                lm.noteColor = noteColor
+            }
+        }
+    }
     public var currentFontSize: CGFloat = 13.0
     public var onFontSizeChanged: ((CGFloat) -> Void)?
     

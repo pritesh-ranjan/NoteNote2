@@ -11,6 +11,8 @@ public enum MarkdownFormattingType {
 
 public enum MarkdownRenderer {
     
+    public static let codeBlockAttribute = NSAttributedString.Key("NoteNoteCodeBlock")
+    
     // MARK: - Highlight / Render Full Text Storage
     public static func highlight(
         textStorage: NSTextStorage,
@@ -65,19 +67,106 @@ public enum MarkdownRenderer {
         ]
         textStorage.setAttributes(baseAttributes, range: fullRange)
         
-        // 2. Multi-line Code Blocks (``` ... ```)
+        // 2. Multi-line Code Blocks (``` ... ``` or ~~~ ... ~~~)
         var codeBlockRanges: [NSRange] = []
-        let codeBlockPattern = "(?m)^```[a-zA-Z0-9_-]*\\n([\\s\\S]*?)\\n```$"
+        let codeBlockPattern = "(?m)^[ \\t]*(`{3,}|~{3,})([a-zA-Z0-9_#+.-]*)[ \\t]*(?:\\r?\\n([\\s\\S]*?))?\\r?\\n[ \\t]*\\1[ \\t]*$"
         if let codeBlockRegex = try? NSRegularExpression(pattern: codeBlockPattern, options: []) {
             let matches = codeBlockRegex.matches(in: string, options: [], range: fullRange)
+            let nsString = string as NSString
+            
             for match in matches {
                 codeBlockRanges.append(match.range)
-                let monoFont = NSFont.monospacedSystemFont(ofSize: max(8.0, fontSize - 1.0), weight: .regular)
-                let codeBg = isDark ? NSColor.white.withAlphaComponent(0.08) : NSColor.black.withAlphaComponent(0.05)
-                textStorage.addAttributes([
-                    .font: monoFont,
-                    .backgroundColor: codeBg
-                ], range: match.range)
+                
+                // Mark entire range for StickyLayoutManager continuous rounded card background
+                textStorage.addAttribute(MarkdownRenderer.codeBlockAttribute, value: true, range: match.range)
+                
+                let matchStr = nsString.substring(with: match.range) as NSString
+                let firstNewline = matchStr.range(of: "\n")
+                let lastNewline = matchStr.range(of: "\n", options: .backwards)
+                
+                guard firstNewline.location != NSNotFound, lastNewline.location != NSNotFound else { continue }
+                
+                let openingLineRange = NSRange(
+                    location: match.range.location,
+                    length: firstNewline.location
+                )
+                let closingLineRange = NSRange(
+                    location: match.range.location + lastNewline.location + 1,
+                    length: match.range.length - (lastNewline.location + 1)
+                )
+                
+                let monoFont = NSFont.monospacedSystemFont(ofSize: max(9.0, fontSize - 1.0), weight: .regular)
+                let codeParagraphStyle = NSMutableParagraphStyle()
+                codeParagraphStyle.lineSpacing = max(2.0, fontSize * 0.18)
+                codeParagraphStyle.paragraphSpacing = 0
+                codeParagraphStyle.headIndent = 10
+                codeParagraphStyle.firstLineHeadIndent = 10
+                
+                // A. Style the Opening Fence
+                let openingFenceRange = match.range(at: 1)
+                let langRange = match.range(at: 2)
+                let openingActive = isLineActive(openingLineRange)
+                
+                if openingActive {
+                    // Show full opening line clearly when editing
+                    textStorage.addAttributes([
+                        .font: monoFont,
+                        .foregroundColor: dimmedMarkerColor,
+                        .paragraphStyle: codeParagraphStyle
+                    ], range: openingLineRange)
+                } else {
+                    // Hide ``` backticks when inactive
+                    applyMarkerStyle(range: openingFenceRange, on: openingLineRange)
+                    
+                    if langRange.length > 0 {
+                        // Display language badge (e.g. BASH, SWIFT)
+                        let badgeFont = NSFont.monospacedSystemFont(ofSize: max(8.5, fontSize - 3.0), weight: .bold)
+                        textStorage.addAttributes([
+                            .font: badgeFont,
+                            .foregroundColor: accentColor.withAlphaComponent(0.85),
+                            .paragraphStyle: codeParagraphStyle
+                        ], range: langRange)
+                    }
+                }
+                
+                // B. Style Code Body
+                if lastNewline.location > firstNewline.location {
+                    let bodyRange = NSRange(
+                        location: match.range.location + firstNewline.location + 1,
+                        length: lastNewline.location - firstNewline.location - 1
+                    )
+                    
+                    if bodyRange.length > 0 {
+                        textStorage.addAttributes([
+                            .font: monoFont,
+                            .foregroundColor: baseTextColor,
+                            .paragraphStyle: codeParagraphStyle
+                        ], range: bodyRange)
+                        
+                        // Line-by-line syntax enhancement inside the code body (e.g. comments)
+                        nsString.enumerateSubstrings(in: bodyRange, options: .byLines) { lineSub, lineR, _, _ in
+                            guard let line = lineSub else { return }
+                            let trimmed = line.trimmingCharacters(in: .whitespaces)
+                            if trimmed.hasPrefix("#") || trimmed.hasPrefix("//") || trimmed.hasPrefix("--") || trimmed.hasPrefix("/*") || trimmed.hasPrefix("*") {
+                                // Dimmed comment coloring
+                                textStorage.addAttribute(.foregroundColor, value: baseTextColor.withAlphaComponent(0.48), range: lineR)
+                            }
+                        }
+                    }
+                }
+                
+                // C. Style the Closing Fence
+                let closingActive = isLineActive(closingLineRange)
+                if closingActive {
+                    textStorage.addAttributes([
+                        .font: monoFont,
+                        .foregroundColor: dimmedMarkerColor,
+                        .paragraphStyle: codeParagraphStyle
+                    ], range: closingLineRange)
+                } else {
+                    // Hide closing ``` when inactive
+                    applyMarkerStyle(range: closingLineRange, on: closingLineRange)
+                }
             }
         }
         
