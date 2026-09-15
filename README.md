@@ -113,24 +113,24 @@ NoteNote2 lives in your **menu bar** with zero Dock clutter, floats above fullsc
 
 Comparing NoteNote2 to popular alternatives for macOS sticky notes, note-taking, and quick capture:
 
-| Feature | **NoteNote2** | Apple Stickies | Obsidian | Notion |
-| --- | :---: | :---: | :---: | :---: |
-| **Always-on-top floating notes** | ✅ | ❌ | ❌ | ❌ |
-| **Menu bar app (no Dock icon)** | ✅ | ❌ | ❌ | ❌ |
-| **Survives fullscreen apps** | ✅ | ❌ | ❌ | ❌ |
-| **App-aware context linking** | ✅ | ❌ | ❌ | ❌ |
-| **Screen sharing privacy** | ✅ | ❌ | ❌ | ❌ |
-| **Touch ID / biometric lock** | ✅ | ❌ | ❌ | ❌ |
-| **Edge dock (slide-out notes)** | ✅ | ❌ | ❌ | ❌ |
-| **Live Markdown & checklists** | ✅ | ❌ | ✅ | ✅ |
-| **Spotlight-style quick capture** | ✅ | ❌ | ✅ | ✅ |
-| **100% local-first (no cloud)** | ✅ | ✅ | ✅ | ❌ |
-| **Open-source (MIT)** | ✅ | ❌ | ❌ | ❌ |
-| **Native macOS (Swift/SwiftUI)** | ✅ | ✅ | ❌ (Electron) | ❌ (Electron) |
-| **Free forever** | ✅ | ✅ | Freemium | Freemium |
-| **Lightweight (< 5 MB)** | ✅ | ✅ | ❌ (~500 MB) | ❌ |
+| Feature | **NoteNote2** | Apple Stickies | Noticky | Antinote | Obsidian | Notion |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Always-on-top floating notes** | ✅ | ❌ | ✅ | 🟡 (HUD Pin) | ❌ | ❌ |
+| **Menu bar app (no Dock icon)** | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| **Survives fullscreen apps** | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| **App-aware context linking** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Screen sharing privacy** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Touch ID / biometric lock** | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| **Edge dock (slide-out notes)** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Live Markdown & checklists** | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **Spotlight-style quick capture** | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **100% local-first (no cloud)** | ✅ | ✅ | ⚠️ (iCloud) | ⚠️ (iCloud) | ✅ | ❌ |
+| **Open-source (MIT)** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Native macOS (Swift/SwiftUI)** | ✅ | ✅ | ✅ | ✅ | ❌ (Electron) | ❌ (Electron) |
+| **Price / License** | **Free (MIT)** | Free (macOS) | $9.99 paid | $5 paid | Freemium | Freemium |
+| **Lightweight (< 10 MB)** | ✅ (< 5 MB) | ✅ (< 5 MB) | ✅ (~10 MB) | ✅ (~10 MB) | ❌ (~500 MB) | ❌ (~500 MB) |
 
-NoteNote2 is the best open-source alternative to Apple Stickies for macOS — with privacy features, Markdown support, and developer-focused tools that no other sticky notes app offers.
+NoteNote2 provides the advanced window management and privacy tools found in paid power-user apps like **Noticky** and **Antinote**, while remaining **100% free, open-source (MIT), and strictly local-first** without any telemetry or cloud lock-in.
 
 ---
 
@@ -290,6 +290,12 @@ No. NoteNote2 is 100% offline and local-first. It makes zero network calls. Your
 <summary><b>How is NoteNote2 different from Apple Stickies?</b></summary>
 <br>
 NoteNote2 adds features Apple Stickies lacks: always-on-top that survives fullscreen apps, screen sharing privacy mode, Touch ID biometric lock, app-aware context linking, edge docking, Markdown rendering, interactive checklists, Spotlight-style quick capture, and a modern pastel/dark theme system. See the <a href="#why-notenote2">comparison table</a>.
+</details>
+
+<details>
+<summary><b>How does NoteNote2 compare to Noticky or Antinote?</b></summary>
+<br>
+Both Noticky and Antinote are well-crafted macOS utilities. <b>Noticky</b> ($9.99) focuses on floating sticky notes with app-linking, edge docking, and screen sharing protection. <b>Antinote</b> ($5) functions primarily as a minimalist quick-scratchpad HUD with built-in math and timers. NoteNote2 combines the rich sticky-note workflow of Noticky with local-first simplicity, while being <b>100% free, open-source (MIT), and strictly offline</b> with zero telemetry or accounts.
 </details>
 
 <details>
