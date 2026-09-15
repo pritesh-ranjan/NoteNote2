@@ -68,7 +68,7 @@ public struct WelcomeView: View {
                     icon: "shield.lefthalf.filled",
                     iconColor: .green,
                     title: "Screen Privacy Shield",
-                    description: "Keep confidential notes, tokens, or passwords 100% invisible during Zoom, Teams, or screen sharing."
+                    description: "Toggle on-screen privacy shield using AppKit window protection during meetings and screen capture."
                 )
             }
             .padding(14)

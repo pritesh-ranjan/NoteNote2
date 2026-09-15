@@ -22,12 +22,12 @@ NoteNote2 lives in your **menu bar** with zero Dock clutter, floats above fullsc
 **Ready-to-use DMG — no Xcode or build tools required:**
 
 <p align="center">
-  <a href="https://github.com/pritesh-ranjan/NoteNote2/releases/download/First/NoteNote.dmg">
-    <img src="https://img.shields.io/badge/⬇_Download_NoteNote.dmg-v1.0-blue?style=for-the-badge&logo=apple" alt="Download NoteNote2 DMG installer for macOS" height="40">
+  <a href="https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.1.0/NoteNote.dmg">
+    <img src="https://img.shields.io/badge/⬇_Download_NoteNote.dmg-v1.1.0-blue?style=for-the-badge&logo=apple" alt="Download NoteNote2 DMG installer for macOS" height="40">
   </a>
 </p>
 
-1. Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/First/NoteNote.dmg)**
+1. Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.1.0/NoteNote.dmg)**
 2. Open the DMG and drag `NoteNote.app` to your **Applications** folder
 3. Launch NoteNote — it appears in your **menu bar** (not the Dock)
 
@@ -38,17 +38,16 @@ NoteNote2 lives in your **menu bar** with zero Dock clutter, floats above fullsc
 ## Key Features
 
 - 📌 **Always on Top (Survives Fullscreen Apps)** — Floats above your workspace even when apps like Xcode, VS Code, Figma, or Safari enter fullscreen (`.floating` + `.canJoinAllSpaces`, `.fullScreenAuxiliary`).
-- 🔗 **App-Aware Notes (Context-Linked)** — Link a note to any Mac app (e.g. Figma, Slack, Safari). The note appears automatically when that app becomes active and hides when you switch away — without stealing focus.
-- 🛡️ **Screen Sharing Privacy (Hide From Screen Capture)** — One-click privacy shield using AppKit's `window.sharingType = .none`. Private notes stay visible to you on screen, but remain 100% invisible in Zoom, Google Meet, Teams, screenshots, and screen recordings.
+- 🔗 **App-Aware Notes (Context-Linked)** — Link a note to any Mac app (e.g. Figma, Slack, Safari) directly from the note header 🔗 icon or right-click context menu. The note appears automatically when that app becomes active and hides when you switch away — without stealing focus.
+- 🛡️ **Screen Sharing Privacy Shield** — One-click privacy shield using AppKit's `window.sharingType = .none` (toggleable via the note header 🛡️ icon or right-click menu). Provides best-effort window-level exclusion from legacy window capture and screen sharing while remaining visible to you on screen.
 - ⭲ **Edge Dock (Slide-Out Notes)** — Dock any note to the left or right display edge as a sleek, compact handle. Hover or click to reveal it smoothly.
-- ⚡ **Spotlight-Style Quick Add (`⌘⇧N`)** — Global capture modal anywhere on your Mac. Type thoughts, pick a color, hit `Return` to save and dismiss, or `⌘Return` to open as floating note.
-- 👁️ **Show / Hide All Notes (`⌘⇧H`)** — Instantly toggle all stickies when you need a clear screen for presentations or focus work.
+- ⚡ **Spotlight-Style Quick Add (`⌘⇧N`)** — Global capture modal anywhere on your Mac using native macOS Carbon global hotkeys (no Accessibility permissions required). Type thoughts, pick a color, hit `Return` to save and dismiss, or `⌘Return` to open as a floating note.
+- 👁️ **Show / Hide All Notes (`⌘⇧H`)** — Instantly toggle all stickies when you need a clear screen for presentations or focus work (via Carbon global hotkey or menu bar).
 - 📝 **Live Markdown & Interactive Checklists** —
   - Interactive checkboxes (`- [ ]` / `- [x]`) that toggle on click with live progress tracking.
   - Headers, bold (`**`), italic (`*`), strikethrough (`~~`), inline code (`` ` ``).
   - Quick formatting bar at the bottom with word and character counters.
-- 🖼️ **Sticky Screenshots & Floating Image Overlays** — Snip any screen area (`⌘⇧S`) or paste images directly into floating sticky notes with opacity sliders and click-through mode.
-- 🔒 **Touch ID / Biometric Lock** — Protect confidential notes behind a frosted glass shield with Touch ID / passcode authentication via macOS LocalAuthentication.
+- 🔒 **Touch ID / Biometric Lock** — Protect confidential notes behind a frosted glass shield with Touch ID / passcode authentication via macOS LocalAuthentication (on-screen UI access lock).
 - 🗂️ **Layout Modes** — Free placement, Cascade Stack (`⌘⇧2`), or clean Grid Tile (`⌘⇧3`).
 - 🎨 **Curated Pastel & Glass Palette** — Sun Yellow, Pastel Rose, Fresh Mint, Sky Blue, Soft Lavender, Charcoal Dark, and Frosted Glass Acrylic themes.
 
@@ -159,7 +158,7 @@ To build from source you need:
 
 ### Option 1: Download the Pre-Built App
 
-Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/First/NoteNote.dmg)** from GitHub Releases, open it, and drag `NoteNote.app` into your Applications folder.
+Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.1.0/NoteNote.dmg)** from GitHub Releases, open it, and drag `NoteNote.app` into your Applications folder.
 
 ### Option 2: Build from Source
 
@@ -195,9 +194,8 @@ swift build -c release
 
 | Shortcut | Action |
 | --- | --- |
-| `⌘ ⇧ N` | **Quick Add Capture** — Spotlight-style global input |
-| `⌘ ⇧ H` | **Show / Hide All** Stickies |
-| `⌘ ⇧ S` | **Capture Sticky Screenshot** |
+| `⌘ ⇧ N` | **Quick Add Capture** — Spotlight-style global input (Carbon hotkey) |
+| `⌘ ⇧ H` | **Show / Hide All** Stickies (Carbon hotkey) |
 | `⌘ N` | **New Sticky Note** |
 | `⌘ ⇧ 2` | **Cascade Stack** Layout |
 | `⌘ ⇧ 3` | **Tile Grid** Layout |
@@ -234,9 +232,9 @@ NoteNote2/
     ├── Services/
     │   ├── NotesStore.swift    # Data store & auto-save to Application Support
     │   ├── AppWatcherService.swift # Workspace frontmost app tracking
-    │   ├── HotkeyService.swift # Global shortcut monitors
+    │   ├── HotkeyService.swift # Carbon global shortcut monitors (⌘⇧N, ⌘⇧H)
     │   ├── TouchIDService.swift# LocalAuthentication biometric lock
-    │   └── ScreenCaptureService.swift # Interactive screenshot & clipboard capture
+    │   └── AppLogger.swift     # Diagnostic & error file logging service
     ├── Windows/
     │   ├── StickyPanel.swift   # Custom borderless NSPanel with window levels
     │   ├── StickyWindowManager.swift # Coordinator for active sticky panels
@@ -252,7 +250,6 @@ NoteNote2/
     │   ├── DockTabHandleView.swift   # Collapsed edge dock pill tab
     │   ├── QuickAddView.swift        # HUD quick capture view
     │   ├── AppPickerSheet.swift      # Running macOS application selector
-    │   ├── ImageOverlayView.swift    # Floating screenshot & image view
     │   └── SettingsView.swift        # Tabbed preferences interface
     └── Utilities/
         └── WindowDragArea.swift      # Native AppKit window drag helper
@@ -267,13 +264,13 @@ All notes and preferences are stored **100% locally** on your Mac — no cloud s
 ```
 ~/Library/Application Support/NoteNote/
 ├── notes.json       # All sticky notes (JSON, human-readable)
-├── settings.json    # User preferences and configuration
-└── Images/          # Pasted and captured screenshot images
+└── settings.json    # User preferences and configuration
 ```
 
 - **Auto-save** is debounced and near-instantaneous after every edit.
 - **Export** any note to `.md` (Markdown) or `.txt` (Plain Text) at any time.
-- **Screen sharing privacy** uses macOS-native `window.sharingType = .none` — notes are never transmitted during Zoom, Meet, or Teams calls.
+- **Screen sharing privacy** uses macOS AppKit window protection (`window.sharingType = .none`) as a best-effort shield against legacy window captures and screen sharing. *(Note: Modern macOS system capture tools using `ScreenCaptureKit` may capture display content depending on capture mode and system permissions).*
+- **Touch ID access lock**: Touch ID / Passcode provides a UI-level on-screen privacy shield against casual desktop viewing. Note contents are stored locally in plain JSON (`notes.json`) on your machine for fast performance and local indexing. For full disk encryption, use macOS FileVault.
 - **No analytics, no tracking, no network calls.** Your notes never leave your machine.
 
 ---
@@ -311,9 +308,15 @@ Yes. NoteNote2 uses <code>NSPanel</code> with <code>.floating</code> window leve
 </details>
 
 <details>
-<summary><b>Are my notes safe from screen recordings and Zoom?</b></summary>
+<summary><b>Are my notes hidden during screen recordings and meetings?</b></summary>
 <br>
-Yes. Enable the privacy shield on any note and it uses <code>window.sharingType = .none</code> — the note is completely invisible to screen capture, screenshots, Zoom, Google Meet, Microsoft Teams, and OBS while remaining visible to you.
+When you enable the Privacy Shield (🛡️) on any note, NoteNote2 sets <code>window.sharingType = .none</code> on the underlying <code>NSPanel</code>. On macOS, this AppKit level instructs the window server to omit the window from standard window capture and sharing. Keep in mind that modern macOS software utilizing Apple's newer <code>ScreenCaptureKit</code> APIs may capture the entire screen display surface depending on system recording permissions and macOS version.
+</details>
+
+<details>
+<summary><b>Does Touch ID encrypt my notes on disk?</b></summary>
+<br>
+No. Touch ID in NoteNote2 is a <b>UI-level access shield</b> designed to protect sensitive stickies on screen from casual viewers and shoulder-surfing. Your notes are stored as plain-text JSON files locally at <code>~/Library/Application Support/NoteNote/notes.json</code>. If you require disk-level encryption, we recommend enabling macOS FileVault.
 </details>
 
 <details>

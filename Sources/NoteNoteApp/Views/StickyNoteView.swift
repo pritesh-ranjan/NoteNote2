@@ -5,7 +5,7 @@ public struct StickyNoteView: View {
     let noteId: UUID
     @StateObject private var store = NotesStore.shared
     @State private var isUnlocked: Bool = false
-    @State private var showingImagePicker: Bool = false
+    @State private var showingAppPicker: Bool = false
     
     public init(noteId: UUID) {
         self.noteId = noteId
@@ -30,19 +30,17 @@ public struct StickyNoteView: View {
                     } else if note.isLocked && !isUnlocked {
                         // Biometric Lock Screen (Touch ID protected)
                         lockedView(for: noteBinding)
-                    } else if note.isImageNote {
-                        // Floating Image Overlay
-                        ImageOverlayView(
-                            note: noteBinding,
-                            onDelete: { store.deleteNote(id: note.id) },
-                            onTogglePrivate: { store.togglePrivate(id: note.id) }
-                        )
                     } else {
                         // Standard Sticky Note View
                         standardNoteView(for: noteBinding)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: note.isDocked ? 10 : 14))
+                .sheet(isPresented: $showingAppPicker) {
+                    AppPickerSheet(currentBundleId: note.linkedAppBundleId) { bundleId, appName in
+                        store.setLinkedApp(id: note.id, bundleId: bundleId, appName: appName)
+                    }
+                }
             } else {
                 EmptyView()
             }
@@ -78,6 +76,12 @@ public struct StickyNoteView: View {
                 },
                 onRemoveLock: {
                     store.setLocked(id: note.wrappedValue.id, locked: false)
+                },
+                onTogglePrivate: {
+                    store.togglePrivate(id: note.wrappedValue.id)
+                },
+                onShowAppPicker: {
+                    showingAppPicker = true
                 }
             )
             
@@ -198,22 +202,6 @@ public struct StickyNoteView: View {
                         self.isUnlocked = true
                     }
                 }
-            }
-        }
-    }
-    
-    private func pickImageAttachment(for id: UUID) {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image, .png, .jpeg]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        
-        if panel.runModal() == .OK, let url = panel.url {
-            if let idx = store.notes.firstIndex(where: { $0.id == id }) {
-                store.notes[idx].imageAttachmentPath = url.path
-                store.notes[idx].isImageNote = true
-                store.requestSave()
             }
         }
     }

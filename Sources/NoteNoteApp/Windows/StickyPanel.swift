@@ -93,8 +93,7 @@ public final class StickyPanel: NSPanel {
     
     public func updateAttributes(
         isPrivate: Bool,
-        opacity: Double,
-        isClickThrough: Bool
+        opacity: Double
     ) {
         self.isFloatingPanel = true
         self.level = .floating
@@ -106,8 +105,8 @@ public final class StickyPanel: NSPanel {
         // Opacity / Ghost mode
         self.alphaValue = CGFloat(max(0.2, min(1.0, opacity)))
         
-        // Click-through reference mode
-        self.ignoresMouseEvents = isClickThrough
+        // Ensure panel is always interactable (cannot be made unclickable)
+        self.ignoresMouseEvents = false
     }
     
     public func animateToFrame(_ newFrame: NSRect, duration: TimeInterval = 0.25) {

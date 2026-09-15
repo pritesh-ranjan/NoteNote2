@@ -80,7 +80,7 @@ public struct SettingsView: View {
                         
                         settingRow(
                             title: "Screen Privacy Shield",
-                            subtitle: "Hide notes from screenshots, screen recordings, and screen sharing by default"
+                            subtitle: "Best-effort AppKit window privacy shield (hides from legacy capture) for newly created notes"
                         ) {
                             Toggle("", isOn: $store.settings.defaultHideFromScreenCapture)
                                 .toggleStyle(.switch)
@@ -189,8 +189,6 @@ public struct SettingsView: View {
                     Divider().padding(.leading, 14)
                     shortcutRow(label: "Show / Hide All Stickies", keys: ["⌘", "⇧", "H"], desc: "Instantly toggle all floating notes")
                     Divider().padding(.leading, 14)
-                    shortcutRow(label: "Capture Sticky Screenshot", keys: ["⌘", "⇧", "S"], desc: "Snip screen area directly into a note")
-                    Divider().padding(.leading, 14)
                     shortcutRow(label: "New Sticky Note", keys: ["⌘", "N"], desc: "Create a new note")
                     Divider().padding(.leading, 14)
                     shortcutRow(label: "Cascade Stack Layout", keys: ["⌘", "⇧", "2"], desc: "Neatly cascade notes from corner")
@@ -252,7 +250,7 @@ public struct SettingsView: View {
             VStack(spacing: 4) {
                 Text("NoteNote")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
-                Text("Version 1.0.0 (macOS Native)")
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0") (macOS Native)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary)
             }

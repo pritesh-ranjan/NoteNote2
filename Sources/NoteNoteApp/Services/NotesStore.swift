@@ -36,14 +36,6 @@ public final class NotesStore: ObservableObject {
         return newDir
     }
     
-    public var imagesDirectory: URL {
-        let dir = storageDirectory.appendingPathComponent("Images", isDirectory: true)
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-        return dir
-    }
-    
     private var notesFileURL: URL {
         storageDirectory.appendingPathComponent("notes.json")
     }
@@ -71,8 +63,6 @@ public final class NotesStore: ObservableObject {
         title: String = "",
         content: String = "",
         color: NoteColor? = nil,
-        isImageNote: Bool = false,
-        imageAttachmentPath: String? = nil,
         linkedAppBundleId: String? = nil,
         linkedAppName: String? = nil,
         at position: CGPoint? = nil
@@ -105,10 +95,8 @@ public final class NotesStore: ObservableObject {
             dockEdge: settings.defaultDockEdge,
             frameX: posX,
             frameY: posY,
-            frameWidth: isImageNote ? 340 : 280,
-            frameHeight: isImageNote ? 320 : 280,
-            isImageNote: isImageNote,
-            imageAttachmentPath: imageAttachmentPath
+            frameWidth: 280,
+            frameHeight: 280
         )
         
         notes.append(newNote)
@@ -181,11 +169,13 @@ public final class NotesStore: ObservableObject {
         guard let idx = notes.firstIndex(where: { $0.id == id }) else { return }
         notes[idx].linkedAppBundleId = bundleId
         notes[idx].linkedAppName = appName
+        AppLogger.info("Set linked app for note '\(notes[idx].displayTitle)': bundleId=\(bundleId ?? "nil"), appName=\(appName ?? "nil")")
         requestSave()
     }
     
     public func toggleAllNotesVisibility() {
         areAllNotesHidden.toggle()
+        AppLogger.info("Toggled all notes visibility: areAllNotesHidden=\(areAllNotesHidden)")
     }
     
     public func exportNote(id: UUID, format: ExportFormat) -> URL? {
@@ -204,9 +194,10 @@ public final class NotesStore: ObservableObject {
         
         do {
             try content.write(to: tempURL, atomically: true, encoding: .utf8)
+            AppLogger.info("Exported note '\(note.displayTitle)' to \(tempURL.path)")
             return tempURL
         } catch {
-            print("Failed to export note: \(error)")
+            AppLogger.error("Failed to export note '\(note.displayTitle)'", error: error)
             return nil
         }
     }
@@ -271,7 +262,7 @@ public final class NotesStore: ObservableObject {
             let settingsData = try JSONEncoder().encode(settings)
             try settingsData.write(to: settingsFileURL, options: .atomic)
         } catch {
-            print("Failed to persist NoteNote data: \(error)")
+            AppLogger.error("Failed to persist NoteNote data", error: error)
         }
     }
     
@@ -284,31 +275,36 @@ public final class NotesStore: ObservableObject {
     }
     
     private func loadNotes() {
-        guard let data = try? Data(contentsOf: notesFileURL),
-              let loaded = try? JSONDecoder().decode([NoteModel].self, from: data),
-              !loaded.isEmpty else {
+        if fileManager.fileExists(atPath: notesFileURL.path) {
+            guard let data = try? Data(contentsOf: notesFileURL),
+                  let loaded = try? JSONDecoder().decode([NoteModel].self, from: data) else {
+                // If the file exists but cannot be decoded, preserve a valid empty state
+                self.notes = []
+                return
+            }
+            var updated = loaded
+            var modified = false
+            for i in updated.indices {
+                if updated[i].title.contains("Noticky") {
+                    updated[i].title = updated[i].title.replacingOccurrences(of: "Noticky", with: "NoteNote")
+                    modified = true
+                }
+                if updated[i].content.contains("Noticky") {
+                    updated[i].content = updated[i].content.replacingOccurrences(of: "Noticky", with: "NoteNote")
+                    modified = true
+                }
+                if updated[i].content.contains("noticky") {
+                    updated[i].content = updated[i].content.replacingOccurrences(of: "noticky", with: "notenote")
+                    modified = true
+                }
+            }
+            self.notes = updated
+            if modified {
+                persistData()
+            }
+        } else {
+            // First launch ever: populate welcome notes
             loadWelcomeNotes()
-            return
-        }
-        var updated = loaded
-        var modified = false
-        for i in updated.indices {
-            if updated[i].title.contains("Noticky") {
-                updated[i].title = updated[i].title.replacingOccurrences(of: "Noticky", with: "NoteNote")
-                modified = true
-            }
-            if updated[i].content.contains("Noticky") {
-                updated[i].content = updated[i].content.replacingOccurrences(of: "Noticky", with: "NoteNote")
-                modified = true
-            }
-            if updated[i].content.contains("noticky") {
-                updated[i].content = updated[i].content.replacingOccurrences(of: "noticky", with: "notenote")
-                modified = true
-            }
-        }
-        self.notes = updated
-        if modified {
-            persistData()
         }
     }
     
@@ -321,7 +317,7 @@ public final class NotesStore: ObservableObject {
             ### Fast, Native Mac Sticky Notes
             
             – [x] Try Always-on-Top (floats above fullscreen apps)
-            – [ ] Click the Shield icon 🛡️ to hide from screen sharing
+            – [ ] Click the Shield icon 🛡️ to toggle screen sharing privacy
             – [ ] Click 🔗 to link this note to an app (Xcode, Safari, Figma)
             – [ ] Click ⭲ to dock this note to the screen edge
             – [ ] Press ⌘⇧N anywhere for Quick Add capture!
@@ -337,14 +333,14 @@ public final class NotesStore: ObservableObject {
         let note2 = NoteModel(
             title: "Meeting Prep & Secrets 🔒",
             content: """
-            ## Private Screen Sharing Demo
+            ## Screen Sharing Privacy Demo
             
-            This note has **Privacy Shield** enabled!
+            This note has **Privacy Shield** enabled (🛡️)!
             
-            Even if you share your screen in Zoom, Google Meet, or take a screenshot, this note remains **100% invisible** to others while remaining visible to you!
+            Uses macOS AppKit window-sharing protection (`window.sharingType = .none`) to help keep confidential notes hidden during screen sharing or screenshots.
             
             ```
-            API_KEY=notenote_super_secret_dev_token
+            API_KEY=notenote_demo_token_key_abc123
             ```
             """,
             color: .pink,

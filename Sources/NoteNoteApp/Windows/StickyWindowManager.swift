@@ -92,18 +92,24 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
     private func updatePanel(_ panel: StickyPanel, for note: NoteModel) {
         panel.updateAttributes(
             isPrivate: note.isPrivate,
-            opacity: note.opacity,
-            isClickThrough: note.isClickThrough
+            opacity: note.opacity
         )
         
-        if shouldShowNote(note) && !NotesStore.shared.areAllNotesHidden {
-            if !panel.isVisible {
-                panel.orderFrontRegardless()
-            }
-        } else {
+        if NotesStore.shared.areAllNotesHidden {
             if panel.isVisible {
                 panel.orderOut(nil)
             }
+            return
+        }
+        
+        // Never hide an actively focused/key note on store updates
+        if panel.isKeyWindow {
+            return
+        }
+        
+        // If the note is not visible but should be visible for the current context, show it
+        if !panel.isVisible && shouldShowNote(note) {
+            panel.orderFrontRegardless()
         }
     }
     
@@ -111,33 +117,61 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         if NotesStore.shared.areAllNotesHidden {
             return false
         }
-        if let linkedApp = note.linkedAppBundleId, !linkedApp.isEmpty {
-            return linkedApp == AppWatcherService.shared.activeAppBundleId
+        guard let linkedApp = note.linkedAppBundleId, !linkedApp.isEmpty else {
+            return true
         }
-        return true
+        
+        // If the note panel is currently the key window, keep it visible
+        if let panel = panels[note.id], panel.isKeyWindow {
+            return true
+        }
+        
+        // If NoteNote itself is the active app, keep all notes visible
+        let activeApp = AppWatcherService.shared.activeAppBundleId
+        if activeApp == Bundle.main.bundleIdentifier {
+            return true
+        }
+        
+        return linkedApp == activeApp
     }
     
     private func handleActiveAppChange(bundleId: String?) {
         guard !NotesStore.shared.areAllNotesHidden else { return }
         
+        // If switching to NoteNote itself, do not hide any notes
+        if bundleId == Bundle.main.bundleIdentifier {
+            return
+        }
+        
+        AppLogger.debug("Handling active app switch to: \(bundleId ?? "nil")")
+        
         for note in NotesStore.shared.notes {
             guard let panel = panels[note.id] else { continue }
+            
+            // Never hide a note if the user is currently interacting with it
+            if panel.isKeyWindow {
+                continue
+            }
             
             if let linkedApp = note.linkedAppBundleId, !linkedApp.isEmpty {
                 if linkedApp == bundleId {
                     if !panel.isVisible {
+                        AppLogger.debug("Showing linked note '\(note.displayTitle)' for app \(linkedApp)")
                         panel.animator().alphaValue = CGFloat(note.opacity)
                         panel.orderFrontRegardless()
                     }
                 } else {
                     if panel.isVisible {
+                        AppLogger.debug("Hiding linked note '\(note.displayTitle)' (linked to \(linkedApp), active: \(bundleId ?? "nil"))")
                         let initialOpacity = CGFloat(note.opacity)
                         NSAnimationContext.runAnimationGroup { context in
                             context.duration = 0.18
                             panel.animator().alphaValue = 0.0
                         } completionHandler: {
                             DispatchQueue.main.async {
-                                panel.orderOut(nil)
+                                if !panel.isKeyWindow {
+                                    panel.orderOut(nil)
+                                }
                                 panel.alphaValue = initialOpacity
                             }
                         }

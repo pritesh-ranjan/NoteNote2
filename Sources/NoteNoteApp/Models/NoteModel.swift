@@ -19,13 +19,10 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     public var dockEdge: DockEdge
     public var isCollapsed: Bool
     public var opacity: Double
-    public var isClickThrough: Bool
     public var frameX: Double
     public var frameY: Double
     public var frameWidth: Double
     public var frameHeight: Double
-    public var isImageNote: Bool
-    public var imageAttachmentPath: String?
     public var fontSize: Double
     public var createdAt: Date
     public var updatedAt: Date
@@ -44,13 +41,10 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         dockEdge: DockEdge = .right,
         isCollapsed: Bool = false,
         opacity: Double = 1.0,
-        isClickThrough: Bool = false,
         frameX: Double = 200,
         frameY: Double = 400,
         frameWidth: Double = 280,
         frameHeight: Double = 280,
-        isImageNote: Bool = false,
-        imageAttachmentPath: String? = nil,
         fontSize: Double = 13.0,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
@@ -68,13 +62,10 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.dockEdge = dockEdge
         self.isCollapsed = isCollapsed
         self.opacity = opacity
-        self.isClickThrough = isClickThrough
         self.frameX = frameX
         self.frameY = frameY
         self.frameWidth = max(frameWidth, 220)
         self.frameHeight = max(frameHeight, 180)
-        self.isImageNote = isImageNote
-        self.imageAttachmentPath = imageAttachmentPath
         self.fontSize = max(9.0, min(42.0, fontSize))
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -84,9 +75,9 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, title, content, color, isPrivate, isLocked
         case linkedAppBundleId, linkedAppName, isDocked, dockEdge
-        case isCollapsed, opacity, isClickThrough
+        case isCollapsed, opacity
         case frameX, frameY, frameWidth, frameHeight
-        case isImageNote, imageAttachmentPath, fontSize
+        case fontSize
         case createdAt, updatedAt, isArchived
     }
     
@@ -104,13 +95,10 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.dockEdge = try container.decodeIfPresent(DockEdge.self, forKey: .dockEdge) ?? .right
         self.isCollapsed = try container.decodeIfPresent(Bool.self, forKey: .isCollapsed) ?? false
         self.opacity = try container.decodeIfPresent(Double.self, forKey: .opacity) ?? 1.0
-        self.isClickThrough = try container.decodeIfPresent(Bool.self, forKey: .isClickThrough) ?? false
         self.frameX = try container.decodeIfPresent(Double.self, forKey: .frameX) ?? 200
         self.frameY = try container.decodeIfPresent(Double.self, forKey: .frameY) ?? 400
         self.frameWidth = try container.decodeIfPresent(Double.self, forKey: .frameWidth) ?? 280
         self.frameHeight = try container.decodeIfPresent(Double.self, forKey: .frameHeight) ?? 280
-        self.isImageNote = try container.decodeIfPresent(Bool.self, forKey: .isImageNote) ?? false
-        self.imageAttachmentPath = try container.decodeIfPresent(String.self, forKey: .imageAttachmentPath)
         self.fontSize = try container.decodeIfPresent(Double.self, forKey: .fontSize) ?? 13.0
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()

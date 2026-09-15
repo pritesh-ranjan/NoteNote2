@@ -54,7 +54,7 @@ Before you begin, ensure your Mac meets the following requirements:
   - `main.swift`: Application entry point with `@MainActor` isolation.
   - `AppDelegate.swift`: App lifecycle, menu bar setup, and global shortcuts.
   - `Models/`: Data structures for notes (`NoteModel`), color schemes (`NoteColor`), and preferences (`AppSettings`).
-  - `Services/`: Persistent storage (`NotesStore`), frontmost app tracking (`AppWatcherService`), hotkeys, biometrics, and screen capture.
+  - `Services/`: Persistent storage (`NotesStore`), frontmost app tracking (`AppWatcherService`), Carbon hotkeys, biometrics, and logging (`AppLogger`).
   - `Windows/`: Window management, status bar controllers, HUD quick add window.
   - `Views/`: SwiftUI views for sticky notes, live markdown editor, checklist parser, formatting bar, and settings.
 - `Resources/`: App icon (`AppIcon.icns`, `AppIcon.png`) and `Info.plist` (sets `LSUIElement` for menu bar accessory mode).

@@ -48,7 +48,17 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         newNoteItem.target = self
         menu.addItem(newNoteItem)
         
-        menu.addItem(NSMenuItem.separator())
+        // 2. Quick Add Sticky (Spotlight HUD)
+        let quickAddItem = NSMenuItem(
+            title: "Quick Add Sticky...",
+            action: #selector(quickAddAction),
+            keyEquivalent: "N"
+        )
+        quickAddItem.keyEquivalentModifierMask = [.command, .shift]
+        quickAddItem.target = self
+        menu.addItem(quickAddItem)
+        
+
         
         // 4. Layout Submenu
         let layoutMenu = NSMenu()
@@ -158,19 +168,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let note = NotesStore.shared.createNote()
         StickyWindowManager.shared.focusNote(id: note.id)
     }
-    
-    @objc private func screenshotAction() {
-        ScreenCaptureService.shared.captureAreaToNote()
-    }
-    
-    @objc private func pasteImageAction() {
-        if !ScreenCaptureService.shared.createNoteFromClipboardImage() {
-            let alert = NSAlert()
-            alert.messageText = "No Image in Clipboard"
-            alert.informativeText = "Copy an image or screenshot first, then choose Paste Image as Sticky Note."
-            alert.runModal()
-        }
-    }
+
     
     @objc private func stackAction() {
         if NotesStore.shared.areAllNotesHidden {
