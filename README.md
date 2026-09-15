@@ -1,4 +1,4 @@
-# NoteNote for Mac 📌
+# Modern Sticky Notes for Mac 📌
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2014.0%2B-blue.svg)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9%2B-orange.svg)](https://swift.org)
