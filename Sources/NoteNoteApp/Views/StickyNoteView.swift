@@ -105,6 +105,51 @@ public struct StickyNoteView: View {
                 }
             }
         )
+        .contextMenu {
+            ForEach(NoteColor.allCases) { color in
+                Button {
+                    note.wrappedValue.color = color
+                    store.requestSave()
+                } label: {
+                    if note.wrappedValue.color == color {
+                        Label(color.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(color.displayName)
+                    }
+                }
+            }
+            
+            Divider()
+            
+            Button {
+                store.togglePrivate(id: note.wrappedValue.id)
+            } label: {
+                if note.wrappedValue.isPrivate {
+                    Label("Privacy Shield: Enabled", systemImage: "shield.fill")
+                } else {
+                    Label("Privacy Shield: Disabled", systemImage: "shield")
+                }
+            }
+            
+            if let appName = note.wrappedValue.linkedAppName, !appName.isEmpty {
+                Button {
+                    showingAppPicker = true
+                } label: {
+                    Label("Change Linked App (\(appName))...", systemImage: "link")
+                }
+                Button {
+                    store.setLinkedApp(id: note.wrappedValue.id, bundleId: nil, appName: nil)
+                } label: {
+                    Label("Unlink from \(appName)", systemImage: "link.badge.plus")
+                }
+            } else {
+                Button {
+                    showingAppPicker = true
+                } label: {
+                    Label("Link to Application...", systemImage: "link")
+                }
+            }
+        }
     }
     
     @ViewBuilder

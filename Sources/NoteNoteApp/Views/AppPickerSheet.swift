@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 public struct AppPickerSheet: View {
     let currentBundleId: String?
@@ -95,6 +96,31 @@ public struct AppPickerSheet: View {
                 .buttonStyle(.plain)
                 .padding(.vertical, 4)
                 
+                // Browse /Applications Option
+                Button {
+                    chooseOtherApp()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "folder.badge.gearshape")
+                            .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                        VStack(alignment: .leading) {
+                            Text("Choose Other Application...")
+                                .font(.body)
+                            Text("Select any app from /Applications")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, 4)
+                
                 Section("Running Applications") {
                     ForEach(filteredApps) { app in
                         Button {
@@ -142,6 +168,27 @@ public struct AppPickerSheet: View {
         .frame(width: 360, height: 420)
         .onAppear {
             appWatcher.refreshRunningApps()
+        }
+    }
+    
+    private func chooseOtherApp() {
+        let openPanel = NSOpenPanel()
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.allowsMultipleSelection = false
+        openPanel.allowedContentTypes = [.application]
+        openPanel.directoryURL = URL(fileURLWithPath: "/Applications")
+        openPanel.prompt = "Select Application"
+        openPanel.message = "Choose an application to link with this note"
+        
+        if openPanel.runModal() == .OK, let url = openPanel.url {
+            if let bundle = Bundle(url: url), let bundleId = bundle.bundleIdentifier {
+                let name = (bundle.infoDictionary?["CFBundleDisplayName"] as? String)
+                    ?? (bundle.infoDictionary?["CFBundleName"] as? String)
+                    ?? url.deletingPathExtension().lastPathComponent
+                onSelect(bundleId, name)
+                dismiss()
+            }
         }
     }
 }

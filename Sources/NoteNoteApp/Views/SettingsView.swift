@@ -8,31 +8,92 @@ public struct SettingsView: View {
     public init() {}
     
     public var body: some View {
-        TabView(selection: $selectedTab) {
-            generalTab
-                .tabItem {
-                    Label("General", systemImage: "gearshape")
-                }
-                .tag(0)
+        VStack(spacing: 0) {
+            // Unified Top Header Bar with Centered Capsule Segmented Tabs matching README
+            headerBar
             
-            shortcutsTab
-                .tabItem {
-                    Label("Shortcuts", systemImage: "command")
+            // Tab Content
+            Group {
+                switch selectedTab {
+                case 0:
+                    generalTab
+                case 1:
+                    shortcutsTab
+                case 2:
+                    aboutTab
+                default:
+                    generalTab
                 }
-                .tag(1)
-            
-            aboutTab
-                .tabItem {
-                    Label("About", systemImage: "info.circle")
-                }
-                .tag(2)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 500, height: 470)
+        .frame(width: 480, height: 482)
+        .background(Color(red: 0.125, green: 0.125, blue: 0.125))
+        .preferredColorScheme(.dark)
     }
     
+    // MARK: - Header Bar
+    private var headerBar: some View {
+        HStack {
+            Spacer()
+            
+            HStack(spacing: 0) {
+                tabButton(title: "General", index: 0)
+                divider
+                tabButton(title: "Shortcuts", index: 1)
+                divider
+                tabButton(title: "About", index: 2)
+            }
+            .padding(3)
+            .background(Color.black.opacity(0.45))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+            )
+            
+            Spacer()
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+    }
+    
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.12))
+            .frame(width: 1, height: 14)
+    }
+    
+    private func tabButton(title: String, index: Int) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                selectedTab = index
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: selectedTab == index ? .semibold : .medium))
+                .foregroundColor(selectedTab == index ? .white : .white.opacity(0.75))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 4)
+                .background(
+                    Group {
+                        if selectedTab == index {
+                            Capsule()
+                                .fill(Color(white: 0.28))
+                                .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
+                        } else {
+                            Color.clear
+                        }
+                    }
+                )
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - General Tab
     private var generalTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 18) {
                 // Section 1: System & Startup
                 settingsSection(title: "System & Startup") {
                     VStack(spacing: 0) {
@@ -45,6 +106,7 @@ public struct SettingsView: View {
                                 set: { startupService.setLaunchAtLogin(enabled: $0) }
                             ))
                             .toggleStyle(.switch)
+                            .tint(.blue)
                             .labelsHidden()
                         }
                     }
@@ -80,10 +142,11 @@ public struct SettingsView: View {
                         
                         settingRow(
                             title: "Screen Privacy Shield",
-                            subtitle: "Best-effort AppKit window privacy shield (hides from legacy capture) for newly created notes"
+                            subtitle: "Hide notes from screenshots, screen recordings, and screen sharing by default"
                         ) {
                             Toggle("", isOn: $store.settings.defaultHideFromScreenCapture)
                                 .toggleStyle(.switch)
+                                .tint(.blue)
                                 .labelsHidden()
                                 .onChange(of: store.settings.defaultHideFromScreenCapture) { _, _ in
                                     store.requestSave()
@@ -101,6 +164,7 @@ public struct SettingsView: View {
                         ) {
                             Toggle("", isOn: $store.settings.playSounds)
                                 .toggleStyle(.switch)
+                                .tint(.blue)
                                 .labelsHidden()
                                 .onChange(of: store.settings.playSounds) { _, _ in
                                     store.requestSave()
@@ -127,25 +191,25 @@ public struct SettingsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 22)
+            .padding(.bottom, 16)
         }
     }
     
     private func settingsSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.secondary)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(Color(white: 0.55))
                 .textCase(.uppercase)
                 .padding(.leading, 4)
             
             content()
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(Color(red: 0.155, green: 0.155, blue: 0.155))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(NSColor.separatorColor).opacity(0.35), lineWidth: 0.5)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
                 )
         }
     }
@@ -156,13 +220,14 @@ public struct SettingsView: View {
         @ViewBuilder control: () -> Control
     ) -> some View {
         HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
                 if let subtitle = subtitle {
                     Text(subtitle)
                         .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(white: 0.6))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -175,12 +240,13 @@ public struct SettingsView: View {
         .padding(.vertical, 10)
     }
     
+    // MARK: - Shortcuts Tab
     private var shortcutsTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Global Keyboard Shortcuts")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(Color(white: 0.55))
                     .textCase(.uppercase)
                     .padding(.leading, 4)
                 
@@ -195,15 +261,15 @@ public struct SettingsView: View {
                     Divider().padding(.leading, 14)
                     shortcutRow(label: "Tile Grid Layout", keys: ["⌘", "⇧", "3"], desc: "Arrange notes in a tidy grid")
                 }
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(Color(red: 0.155, green: 0.155, blue: 0.155))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(NSColor.separatorColor).opacity(0.35), lineWidth: 0.5)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
                 )
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 22)
+            .padding(.bottom, 16)
         }
     }
     
@@ -212,9 +278,10 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
                 Text(desc)
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(white: 0.6))
             }
             
             Spacer(minLength: 16)
@@ -223,13 +290,14 @@ public struct SettingsView: View {
                 ForEach(keys, id: \.self) { key in
                     Text(key)
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color(NSColor.windowBackgroundColor))
+                        .background(Color(white: 0.22))
                         .cornerRadius(4)
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 0.5)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
                         )
                 }
             }
@@ -238,6 +306,7 @@ public struct SettingsView: View {
         .padding(.vertical, 8)
     }
     
+    // MARK: - About Tab
     private var aboutTab: some View {
         VStack(spacing: 16) {
             Spacer()
@@ -250,22 +319,23 @@ public struct SettingsView: View {
             VStack(spacing: 4) {
                 Text("NoteNote")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
                 Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0") (macOS Native)")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(white: 0.6))
             }
             
             Text("Fast, native, and always-on-top sticky notes built with pure Swift, SwiftUI, and AppKit.")
                 .font(.system(size: 13))
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(Color(white: 0.7))
                 .frame(maxWidth: 340)
             
             Spacer()
             
             Text("Built for macOS power users • Zero external dependencies")
                 .font(.system(size: 11))
-                .foregroundColor(.secondary.opacity(0.7))
+                .foregroundColor(Color(white: 0.45))
                 .padding(.bottom, 12)
         }
         .padding(24)

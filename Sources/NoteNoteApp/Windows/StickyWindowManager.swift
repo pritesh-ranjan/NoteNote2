@@ -7,6 +7,7 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
     public static let shared = StickyWindowManager()
     
     private var panels: [UUID: StickyPanel] = [:]
+    private var pendingHideTasks: [UUID: DispatchWorkItem] = [:]
     private var cancellables = Set<AnyCancellable>()
     private var isUpdatingFrames = false
     
@@ -51,6 +52,7 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         
         // Remove closed notes
         for removedId in existingIds.subtracting(currentIds) {
+            pendingHideTasks.removeValue(forKey: removedId)?.cancel()
             if let panel = panels.removeValue(forKey: removedId) {
                 panel.orderOut(nil)
             }
@@ -85,7 +87,7 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         
         // Check app awareness before ordering front
         if shouldShowNote(note) {
-            panel.orderFrontRegardless()
+            showLinkedNote(note, panel: panel)
         }
     }
     
@@ -96,6 +98,8 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         )
         
         if NotesStore.shared.areAllNotesHidden {
+            pendingHideTasks[note.id]?.cancel()
+            pendingHideTasks.removeValue(forKey: note.id)
             if panel.isVisible {
                 panel.orderOut(nil)
             }
@@ -107,10 +111,22 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
             return
         }
         
-        // If the note is not visible but should be visible for the current context, show it
-        if !panel.isVisible && shouldShowNote(note) {
-            panel.orderFrontRegardless()
+        if shouldShowNote(note) {
+            showLinkedNote(note, panel: panel)
+        } else {
+            hideLinkedNote(note, panel: panel)
         }
+    }
+    
+    private func isCurrentApp(bundleId: String?) -> Bool {
+        guard let bundleId = bundleId, !bundleId.isEmpty else { return false }
+        if let currentId = Bundle.main.bundleIdentifier, currentId == bundleId {
+            return true
+        }
+        if let currentId = NSRunningApplication.current.bundleIdentifier, currentId == bundleId {
+            return true
+        }
+        return bundleId == "com.priteshranjan.NoteNote"
     }
     
     private func shouldShowNote(_ note: NoteModel) -> Bool {
@@ -128,18 +144,78 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         
         // If NoteNote itself is the active app, keep all notes visible
         let activeApp = AppWatcherService.shared.activeAppBundleId
-        if activeApp == Bundle.main.bundleIdentifier {
+        if isCurrentApp(bundleId: activeApp) {
             return true
         }
         
         return linkedApp == activeApp
     }
     
+    private func showLinkedNote(_ note: NoteModel, panel: StickyPanel) {
+        pendingHideTasks[note.id]?.cancel()
+        pendingHideTasks.removeValue(forKey: note.id)
+        
+        let targetOpacity = CGFloat(max(0.2, min(1.0, note.opacity)))
+        
+        if !panel.isVisible {
+            AppLogger.debug("Showing linked note '\(note.displayTitle)' for app \(note.linkedAppBundleId ?? "")")
+            panel.alphaValue = 0.0
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                panel.animator().alphaValue = targetOpacity
+            }
+        } else {
+            // Panel already visible: ensure opacity is restored if it was fading out, and bring front
+            if panel.alphaValue < targetOpacity {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.18
+                    panel.animator().alphaValue = targetOpacity
+                }
+            }
+            panel.orderFrontRegardless()
+        }
+    }
+    
+    private func hideLinkedNote(_ note: NoteModel, panel: StickyPanel) {
+        pendingHideTasks[note.id]?.cancel()
+        
+        // Never hide an actively focused note if the user is typing in it
+        if panel.isKeyWindow {
+            return
+        }
+        
+        guard panel.isVisible else { return }
+        
+        AppLogger.debug("Hiding linked note '\(note.displayTitle)' (linked to \(note.linkedAppBundleId ?? ""), active: \(AppWatcherService.shared.activeAppBundleId ?? "nil"))")
+        
+        let targetOpacity = CGFloat(max(0.2, min(1.0, note.opacity)))
+        
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            panel.animator().alphaValue = 0.0
+        }
+        
+        let workItem = DispatchWorkItem { [weak self, weak panel] in
+            guard let self = self, let panel = panel else { return }
+            self.pendingHideTasks.removeValue(forKey: note.id)
+            
+            // Re-verify that the note should still be hidden before ordering out
+            if !self.shouldShowNote(note) && !panel.isKeyWindow {
+                panel.orderOut(nil)
+            }
+            panel.alphaValue = targetOpacity
+        }
+        
+        pendingHideTasks[note.id] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
+    }
+    
     private func handleActiveAppChange(bundleId: String?) {
         guard !NotesStore.shared.areAllNotesHidden else { return }
         
         // If switching to NoteNote itself, do not hide any notes
-        if bundleId == Bundle.main.bundleIdentifier {
+        if isCurrentApp(bundleId: bundleId) {
             return
         }
         
@@ -148,34 +224,11 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         for note in NotesStore.shared.notes {
             guard let panel = panels[note.id] else { continue }
             
-            // Never hide a note if the user is currently interacting with it
-            if panel.isKeyWindow {
-                continue
-            }
-            
             if let linkedApp = note.linkedAppBundleId, !linkedApp.isEmpty {
                 if linkedApp == bundleId {
-                    if !panel.isVisible {
-                        AppLogger.debug("Showing linked note '\(note.displayTitle)' for app \(linkedApp)")
-                        panel.animator().alphaValue = CGFloat(note.opacity)
-                        panel.orderFrontRegardless()
-                    }
+                    showLinkedNote(note, panel: panel)
                 } else {
-                    if panel.isVisible {
-                        AppLogger.debug("Hiding linked note '\(note.displayTitle)' (linked to \(linkedApp), active: \(bundleId ?? "nil"))")
-                        let initialOpacity = CGFloat(note.opacity)
-                        NSAnimationContext.runAnimationGroup { context in
-                            context.duration = 0.18
-                            panel.animator().alphaValue = 0.0
-                        } completionHandler: {
-                            DispatchQueue.main.async {
-                                if !panel.isKeyWindow {
-                                    panel.orderOut(nil)
-                                }
-                                panel.alphaValue = initialOpacity
-                            }
-                        }
-                    }
+                    hideLinkedNote(note, panel: panel)
                 }
             }
         }

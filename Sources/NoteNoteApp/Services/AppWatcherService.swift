@@ -38,6 +38,11 @@ public final class AppWatcherService: ObservableObject {
     }
     
     public func startObserving() {
+        if let existing = observer {
+            NSWorkspace.shared.notificationCenter.removeObserver(existing)
+            self.observer = nil
+        }
+        
         if let frontApp = NSWorkspace.shared.frontmostApplication {
             self.activeAppBundleId = frontApp.bundleIdentifier
             self.activeAppName = frontApp.localizedName
@@ -61,8 +66,21 @@ public final class AppWatcherService: ObservableObject {
     }
     
     public func refreshRunningApps() {
+        var seenBundleIds = Set<String>()
+        let myBundleId = Bundle.main.bundleIdentifier ?? NSRunningApplication.current.bundleIdentifier
+        let myPid = ProcessInfo.processInfo.processIdentifier
+        
         let apps = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
+            .filter { app in
+                guard app.activationPolicy == .regular,
+                      let bundleId = app.bundleIdentifier,
+                      !bundleId.isEmpty,
+                      bundleId != myBundleId,
+                      app.processIdentifier != myPid else {
+                    return false
+                }
+                return seenBundleIds.insert(bundleId).inserted
+            }
             .compactMap { app -> RunningAppInfo? in
                 guard let bundleId = app.bundleIdentifier,
                       let name = app.localizedName else { return nil }

@@ -16,6 +16,7 @@ public final class StickyPanel: NSPanel {
         )
         
         self.isFloatingPanel = true
+        self.hidesOnDeactivate = false
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.isOpaque = false
@@ -96,6 +97,7 @@ public final class StickyPanel: NSPanel {
         opacity: Double
     ) {
         self.isFloatingPanel = true
+        self.hidesOnDeactivate = false
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
