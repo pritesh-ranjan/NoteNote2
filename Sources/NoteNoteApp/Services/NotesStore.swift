@@ -90,6 +90,7 @@ public final class NotesStore: ObservableObject {
             content: content,
             color: chosenColor,
             isPrivate: settings.defaultHideFromScreenCapture,
+            isPinned: settings.defaultPinned,
             linkedAppBundleId: linkedAppBundleId,
             linkedAppName: linkedAppName,
             dockEdge: settings.defaultDockEdge,
@@ -135,6 +136,18 @@ public final class NotesStore: ObservableObject {
     public func togglePrivate(id: UUID) {
         guard let idx = notes.firstIndex(where: { $0.id == id }) else { return }
         notes[idx].isPrivate.toggle()
+        requestSave()
+    }
+    
+    public func togglePin(id: UUID) {
+        guard let idx = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[idx].isPinned.toggle()
+        requestSave()
+    }
+    
+    public func setPinned(id: UUID, pinned: Bool) {
+        guard let idx = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[idx].isPinned = pinned
         requestSave()
     }
     

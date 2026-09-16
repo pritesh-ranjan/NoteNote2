@@ -152,6 +152,22 @@ public struct SettingsView: View {
                                     store.requestSave()
                                 }
                         }
+                        
+                        Divider()
+                            .padding(.leading, 14)
+                        
+                        settingRow(
+                            title: "Pin Notes on Top by Default",
+                            subtitle: "Keep new sticky notes floating on top of all other app windows"
+                        ) {
+                            Toggle("", isOn: $store.settings.defaultPinned)
+                                .toggleStyle(.switch)
+                                .tint(.blue)
+                                .labelsHidden()
+                                .onChange(of: store.settings.defaultPinned) { _, _ in
+                                    store.requestSave()
+                                }
+                        }
                     }
                 }
                 
@@ -257,6 +273,10 @@ public struct SettingsView: View {
                     Divider().padding(.leading, 14)
                     shortcutRow(label: "New Sticky Note", keys: ["⌘", "N"], desc: "Create a new note")
                     Divider().padding(.leading, 14)
+                    shortcutRow(label: "Pin / Unpin Active Note", keys: ["⌘", "P"], desc: "Toggle Always on Top floating level")
+                    Divider().padding(.leading, 14)
+                    shortcutRow(label: "Lock Active Note", keys: ["⌘", "L"], desc: "Protect active note with Touch ID")
+                    Divider().padding(.leading, 14)
                     shortcutRow(label: "Cascade Stack Layout", keys: ["⌘", "⇧", "2"], desc: "Neatly cascade notes from corner")
                     Divider().padding(.leading, 14)
                     shortcutRow(label: "Tile Grid Layout", keys: ["⌘", "⇧", "3"], desc: "Arrange notes in a tidy grid")
@@ -320,7 +340,7 @@ public struct SettingsView: View {
                 Text("NoteNote")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0") (macOS Native)")
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0") (macOS Native)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Color(white: 0.6))
             }

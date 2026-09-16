@@ -22,12 +22,12 @@ NoteNote2 lives in your **menu bar** with zero Dock clutter, floats above fullsc
 **Ready-to-use DMG — no Xcode or build tools required:**
 
 <p align="center">
-  <a href="https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.1.0/NoteNote.dmg">
-    <img src="https://img.shields.io/badge/⬇_Download_NoteNote.dmg-v1.1.0-blue?style=for-the-badge&logo=apple" alt="Download NoteNote2 DMG installer for macOS" height="40">
+  <a href="https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.2.0/NoteNote.dmg">
+    <img src="https://img.shields.io/badge/⬇_Download_NoteNote.dmg-v1.2.0-blue?style=for-the-badge&logo=apple" alt="Download NoteNote2 DMG installer for macOS" height="40">
   </a>
 </p>
 
-1. Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.1.0/NoteNote.dmg)**
+1. Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.2.0/NoteNote.dmg)**
 2. Open the DMG and drag `NoteNote.app` to your **Applications** folder
 3. Launch NoteNote — it appears in your **menu bar** (not the Dock)
 
@@ -158,7 +158,7 @@ To build from source you need:
 
 ### Option 1: Download the Pre-Built App
 
-Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.1.0/NoteNote.dmg)** from GitHub Releases, open it, and drag `NoteNote.app` into your Applications folder.
+Download **[NoteNote.dmg](https://github.com/pritesh-ranjan/NoteNote2/releases/download/v1.2.0/NoteNote.dmg)** from GitHub Releases, open it, and drag `NoteNote.app` into your Applications folder.
 
 ### Option 2: Build from Source
 

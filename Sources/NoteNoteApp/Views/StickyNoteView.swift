@@ -80,6 +80,9 @@ public struct StickyNoteView: View {
                 onTogglePrivate: {
                     store.togglePrivate(id: note.wrappedValue.id)
                 },
+                onTogglePin: {
+                    store.togglePin(id: note.wrappedValue.id)
+                },
                 onShowAppPicker: {
                     showingAppPicker = true
                 }
@@ -120,6 +123,16 @@ public struct StickyNoteView: View {
             }
             
             Divider()
+            
+            Button {
+                store.togglePin(id: note.wrappedValue.id)
+            } label: {
+                if note.wrappedValue.isPinned {
+                    Label("Always on Top: Pinned", systemImage: "pin.fill")
+                } else {
+                    Label("Pin to Top (Always on Top)", systemImage: "pin")
+                }
+            }
             
             Button {
                 store.togglePrivate(id: note.wrappedValue.id)

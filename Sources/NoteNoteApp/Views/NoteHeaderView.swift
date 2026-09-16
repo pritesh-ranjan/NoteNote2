@@ -9,6 +9,7 @@ public struct NoteHeaderView: View {
     let onLockNow: () -> Void
     let onRemoveLock: () -> Void
     let onTogglePrivate: () -> Void
+    let onTogglePin: () -> Void
     let onShowAppPicker: () -> Void
     
     @State private var isHovering = false
@@ -16,6 +17,7 @@ public struct NoteHeaderView: View {
     @State private var isNewNoteHovered = false
     @State private var isLockHovered = false
     @State private var isShieldHovered = false
+    @State private var isPinHovered = false
     @State private var isLinkHovered = false
     
     private var showButtons: Bool {
@@ -30,6 +32,7 @@ public struct NoteHeaderView: View {
         onLockNow: @escaping () -> Void,
         onRemoveLock: @escaping () -> Void,
         onTogglePrivate: @escaping () -> Void,
+        onTogglePin: @escaping () -> Void,
         onShowAppPicker: @escaping () -> Void
     ) {
         self._note = note
@@ -39,6 +42,7 @@ public struct NoteHeaderView: View {
         self.onLockNow = onLockNow
         self.onRemoveLock = onRemoveLock
         self.onTogglePrivate = onTogglePrivate
+        self.onTogglePin = onTogglePin
         self.onShowAppPicker = onShowAppPicker
     }
     
@@ -163,7 +167,38 @@ public struct NoteHeaderView: View {
                         .allowsHitTesting(showButtons)
                     }
                     
-                    // 6. Touch ID Lock indicator/button (only when protected)
+                    // 6. Pin / Always on Top Toggle Button
+                    if note.isPinned {
+                        Button(action: onTogglePin) {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(note.color.accentColor)
+                                .scaleEffect(isPinHovered ? 1.15 : 1.0)
+                                .animation(.easeInOut(duration: 0.12), value: isPinHovered)
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Pinned on Top (Click to unpin, or press ⌘P)")
+                        .onHover { isPinHovered = $0 }
+                    } else {
+                        Button(action: onTogglePin) {
+                            Image(systemName: "pin")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(note.color.textColor.opacity(isPinHovered ? 0.9 : 0.5))
+                                .scaleEffect(isPinHovered ? 1.15 : 1.0)
+                                .animation(.easeInOut(duration: 0.12), value: isPinHovered)
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Pin Note (Stay Always on Top, or press ⌘P)")
+                        .onHover { isPinHovered = $0 }
+                        .opacity(showButtons ? 1.0 : 0.0)
+                        .allowsHitTesting(showButtons)
+                    }
+                    
+                    // 7. Touch ID Lock indicator/button (only when protected)
                     if note.isLocked {
                         Button(action: onLockNow) {
                             Image(systemName: "lock.fill")
@@ -202,6 +237,15 @@ public struct NoteHeaderView: View {
                 }
                 
                 Divider()
+                
+                // Pin / Always on Top
+                Button(action: onTogglePin) {
+                    if note.isPinned {
+                        Label("Always on Top: Pinned", systemImage: "pin.fill")
+                    } else {
+                        Label("Pin to Top (Always on Top)", systemImage: "pin")
+                    }
+                }
                 
                 // Screen Privacy Shield
                 Button(action: onTogglePrivate) {

@@ -76,7 +76,7 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
             height: note.frameHeight
         )
         
-        let panel = StickyPanel(noteId: note.id, contentRect: frame)
+        let panel = StickyPanel(noteId: note.id, contentRect: frame, isPinned: note.isPinned)
         panel.delegate = self
         
         let hostingView = NSHostingView(rootView: StickyNoteView(noteId: note.id))
@@ -94,7 +94,8 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
     private func updatePanel(_ panel: StickyPanel, for note: NoteModel) {
         panel.updateAttributes(
             isPrivate: note.isPrivate,
-            opacity: note.opacity
+            opacity: note.opacity,
+            isPinned: note.isPinned
         )
         
         if NotesStore.shared.areAllNotesHidden {
@@ -156,6 +157,8 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         pendingHideTasks.removeValue(forKey: note.id)
         
         let targetOpacity = CGFloat(max(0.2, min(1.0, note.opacity)))
+        panel.level = note.isPinned ? .floating : .normal
+        panel.isFloatingPanel = note.isPinned
         
         if !panel.isVisible {
             AppLogger.debug("Showing linked note '\(note.displayTitle)' for app \(note.linkedAppBundleId ?? "")")

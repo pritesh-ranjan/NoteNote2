@@ -508,6 +508,13 @@ public final class StickyTextView: NSTextView {
                     return true
                 }
             }
+            // 14. Pin Note Always on Top (⌘P)
+            if key == "p" && isCommand && !isShift && !isControl {
+                if let panel = self.window as? StickyPanel {
+                    NotesStore.shared.togglePin(id: panel.noteId)
+                    return true
+                }
+            }
         }
         return super.performKeyEquivalent(with: event)
     }

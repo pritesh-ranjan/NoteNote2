@@ -5,7 +5,7 @@ public final class StickyPanel: NSPanel {
     public let noteId: UUID
     private var trackingArea: NSTrackingArea?
     
-    public init(noteId: UUID, contentRect: NSRect) {
+    public init(noteId: UUID, contentRect: NSRect, isPinned: Bool = false) {
         self.noteId = noteId
         
         super.init(
@@ -15,9 +15,9 @@ public final class StickyPanel: NSPanel {
             defer: false
         )
         
-        self.isFloatingPanel = true
+        self.isFloatingPanel = isPinned
         self.hidesOnDeactivate = false
-        self.level = .floating
+        self.level = isPinned ? .floating : .normal
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.isOpaque = false
         self.backgroundColor = .clear
@@ -56,6 +56,10 @@ public final class StickyPanel: NSPanel {
                 handleLockShortcut()
                 return true
             }
+            if key == "p" {
+                NotesStore.shared.togglePin(id: noteId)
+                return true
+            }
         }
         return super.performKeyEquivalent(with: event)
     }
@@ -66,6 +70,10 @@ public final class StickyPanel: NSPanel {
             let key = event.charactersIgnoringModifiers?.lowercased()
             if key == "l" {
                 handleLockShortcut()
+                return
+            }
+            if key == "p" {
+                NotesStore.shared.togglePin(id: noteId)
                 return
             }
         }
@@ -94,11 +102,12 @@ public final class StickyPanel: NSPanel {
     
     public func updateAttributes(
         isPrivate: Bool,
-        opacity: Double
+        opacity: Double,
+        isPinned: Bool
     ) {
-        self.isFloatingPanel = true
+        self.isFloatingPanel = isPinned
         self.hidesOnDeactivate = false
-        self.level = .floating
+        self.level = isPinned ? .floating : .normal
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
         // Hide From Screen Sharing / Recording (Zoom, Teams, Screenshots)

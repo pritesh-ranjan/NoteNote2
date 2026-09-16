@@ -13,6 +13,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     public var color: NoteColor
     public var isPrivate: Bool
     public var isLocked: Bool
+    public var isPinned: Bool
     public var linkedAppBundleId: String?
     public var linkedAppName: String?
     public var isDocked: Bool
@@ -35,6 +36,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         color: NoteColor = .yellow,
         isPrivate: Bool = false,
         isLocked: Bool = false,
+        isPinned: Bool = false,
         linkedAppBundleId: String? = nil,
         linkedAppName: String? = nil,
         isDocked: Bool = false,
@@ -56,6 +58,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.color = color
         self.isPrivate = isPrivate
         self.isLocked = isLocked
+        self.isPinned = isPinned
         self.linkedAppBundleId = linkedAppBundleId
         self.linkedAppName = linkedAppName
         self.isDocked = isDocked
@@ -73,7 +76,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, title, content, color, isPrivate, isLocked
+        case id, title, content, color, isPrivate, isLocked, isPinned
         case linkedAppBundleId, linkedAppName, isDocked, dockEdge
         case isCollapsed, opacity
         case frameX, frameY, frameWidth, frameHeight
@@ -89,6 +92,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.color = try container.decodeIfPresent(NoteColor.self, forKey: .color) ?? .yellow
         self.isPrivate = try container.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false
         self.isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        self.isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         self.linkedAppBundleId = try container.decodeIfPresent(String.self, forKey: .linkedAppBundleId)
         self.linkedAppName = try container.decodeIfPresent(String.self, forKey: .linkedAppName)
         self.isDocked = try container.decodeIfPresent(Bool.self, forKey: .isDocked) ?? false
