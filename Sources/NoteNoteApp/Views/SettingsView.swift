@@ -484,7 +484,7 @@ public struct SettingsView: View {
                 Text("NoteNote")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.0") (macOS Native)")
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.1.0") (macOS Native)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Color(white: 0.6))
             }
