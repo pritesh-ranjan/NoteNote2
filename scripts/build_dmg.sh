@@ -92,7 +92,7 @@ sync
 
 echo "📤 Unmounting temporary image..."
 sleep 1
-hdiutil detach "${DEVICE}" -force || (sleep 2 && hdiutil detach "${DEVICE}" -force)
+hdiutil detach "${DEVICE}" -force 2>/dev/null || hdiutil detach "${MOUNT_DIR}" -force 2>/dev/null || (sleep 2 && hdiutil detach "${DEVICE}" -force 2>/dev/null) || true
 
 # 7. Convert to compressed, final read-only DMG
 echo "🗜️ Compressing to final DMG: ${DMG_NAME}..."

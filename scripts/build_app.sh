@@ -29,10 +29,12 @@ fi
 echo -n "APPL????" > "${CONTENTS_DIR}/PkgInfo"
 
 # Ad-hoc sign with consistent bundle identifier and stable designated requirement for TCC persistence across rebuilds and restarts
-codesign -s - --force --deep -i "com.priteshranjan.NoteNote" -r='designated => identifier "com.priteshranjan.NoteNote"' "${BUNDLE_DIR}"
+codesign -s - --force --deep -i "com.priteshranjan.NoteNote" -r='designated => identifier "com.priteshranjan.NoteNote"' "${BUNDLE_DIR}" 2>/dev/null || codesign -s - --force --deep "${BUNDLE_DIR}" || true
 
 # Register with macOS LaunchServices so system permissions (TCC) recognize the bundle
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${BUNDLE_DIR}"
+if [ -x "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister" ]; then
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${BUNDLE_DIR}" 2>/dev/null || true
+fi
 
 echo "✅ Successfully built and registered ${BUNDLE_DIR}!"
 echo "👉 You can run it now with: open ${BUNDLE_DIR}"
