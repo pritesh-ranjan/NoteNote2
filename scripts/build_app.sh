@@ -15,8 +15,16 @@ rm -rf "${BUNDLE_DIR}"
 mkdir -p "${MACOS_DIR}"
 mkdir -p "${RESOURCES_DIR}"
 
-# Copy binary
-cp ".build/release/${APP_NAME}" "${MACOS_DIR}/${APP_NAME}"
+# Copy binary dynamically located via SwiftPM
+BIN_DIR=$(swift build -c release --show-bin-path)
+if [ -f "${BIN_DIR}/${APP_NAME}" ]; then
+    cp "${BIN_DIR}/${APP_NAME}" "${MACOS_DIR}/${APP_NAME}"
+elif [ -f ".build/release/${APP_NAME}" ]; then
+    cp ".build/release/${APP_NAME}" "${MACOS_DIR}/${APP_NAME}"
+else
+    FOUND_BIN=$(find .build -name "${APP_NAME}" -type f -perm +111 2>/dev/null | grep -i release | head -n 1)
+    cp "${FOUND_BIN}" "${MACOS_DIR}/${APP_NAME}"
+fi
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
 # Copy Info.plist and AppIcon
