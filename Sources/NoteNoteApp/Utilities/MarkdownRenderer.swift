@@ -28,7 +28,7 @@ public enum MarkdownRenderer {
         let baseTextColor = noteColor.nsTextColor
         let accentColor = noteColor.nsAccentColor
         let dimmedMarkerColor = baseTextColor.withAlphaComponent(0.40)
-        let baseFont = NSFont.systemFont(ofSize: fontSize, weight: .regular)
+        let baseFont = noteColor.font(ofSize: fontSize, weight: .regular)
         
         let defaultParagraphStyle = NSMutableParagraphStyle()
         defaultParagraphStyle.lineSpacing = max(2.0, fontSize * 0.25)
@@ -191,11 +191,11 @@ public enum MarkdownRenderer {
                 
                 let headingFont: NSFont = {
                     switch level {
-                    case 1: return NSFont.systemFont(ofSize: round(fontSize * 1.38), weight: .bold)
-                    case 2: return NSFont.systemFont(ofSize: round(fontSize * 1.20), weight: .bold)
-                    case 3: return NSFont.systemFont(ofSize: round(fontSize * 1.08), weight: .semibold)
-                    case 4: return NSFont.systemFont(ofSize: round(fontSize * 1.04), weight: .semibold)
-                    default: return NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+                    case 1: return noteColor.font(ofSize: round(fontSize * 1.38), weight: .bold)
+                    case 2: return noteColor.font(ofSize: round(fontSize * 1.20), weight: .bold)
+                    case 3: return noteColor.font(ofSize: round(fontSize * 1.08), weight: .semibold)
+                    case 4: return noteColor.font(ofSize: round(fontSize * 1.04), weight: .semibold)
+                    default: return noteColor.font(ofSize: fontSize, weight: .semibold)
                     }
                 }()
                 

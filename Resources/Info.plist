@@ -30,5 +30,7 @@
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>NoteNote uses screen recording to capture screen areas directly into sticky notes.</string>
 </dict>
 </plist>

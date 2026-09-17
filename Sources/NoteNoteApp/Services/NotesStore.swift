@@ -37,6 +37,14 @@ public final class NotesStore: ObservableObject {
         return newDir
     }
     
+    public var attachmentsDirectory: URL {
+        let dir = storageDirectory.appendingPathComponent("Attachments", isDirectory: true)
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+    
     public var notesFileURL: URL {
         storageDirectory.appendingPathComponent("notes.json")
     }
@@ -80,12 +88,12 @@ public final class NotesStore: ObservableObject {
             if let explicit = color {
                 return explicit
             }
-            let allColors = NoteColor.allCases
-            if let lastColor = notes.last?.color {
-                let alternatives = allColors.filter { $0 != lastColor }
-                return alternatives.randomElement() ?? allColors.randomElement() ?? .yellow
+            let candidates = NoteColor.randomCases
+            if let lastColor = notes.last?.color, candidates.contains(lastColor) {
+                let alternatives = candidates.filter { $0 != lastColor }
+                return alternatives.randomElement() ?? candidates.randomElement() ?? .yellow
             }
-            return allColors.randomElement() ?? .yellow
+            return candidates.randomElement() ?? .yellow
         }()
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 100, y: 100, width: 1400, height: 900)
         
@@ -123,6 +131,19 @@ public final class NotesStore: ObservableObject {
         }
     }
     
+    public func appendContent(to noteId: UUID, newText: String) {
+        if let idx = notes.firstIndex(where: { $0.id == noteId }) {
+            var current = notes[idx].content
+            if !current.isEmpty && !current.hasSuffix("\n") {
+                current += "\n\n"
+            }
+            current += newText
+            notes[idx].content = current
+            notes[idx].updatedAt = Date()
+            requestSave()
+        }
+    }
+    
     public func deleteNote(id: UUID) {
         if let idx = notes.firstIndex(where: { $0.id == id }) {
             var note = notes.remove(at: idx)
@@ -145,13 +166,65 @@ public final class NotesStore: ObservableObject {
         }
     }
     
+    public func attachmentURL(for noteId: UUID, filename: String) -> URL {
+        attachmentsDirectory.appendingPathComponent(noteId.uuidString, isDirectory: true).appendingPathComponent(filename)
+    }
+    
+    @discardableResult
+    public func addImageAttachment(to noteId: UUID, image: NSImage) -> String? {
+        guard let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData),
+              let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+        
+        let noteDir = attachmentsDirectory.appendingPathComponent(noteId.uuidString, isDirectory: true)
+        if !fileManager.fileExists(atPath: noteDir.path) {
+            try? fileManager.createDirectory(at: noteDir, withIntermediateDirectories: true)
+        }
+        
+        let filename = "\(UUID().uuidString).png"
+        let fileURL = noteDir.appendingPathComponent(filename)
+        
+        do {
+            try pngData.write(to: fileURL)
+            if let idx = notes.firstIndex(where: { $0.id == noteId }) {
+                notes[idx].imageAttachments.append(filename)
+                notes[idx].updatedAt = Date()
+                requestSave()
+            }
+            AppLogger.info("Added image attachment '\(filename)' to note \(noteId)")
+            return filename
+        } catch {
+            AppLogger.error("Failed to write image attachment", error: error)
+            return nil
+        }
+    }
+    
+    public func removeImageAttachment(from noteId: UUID, filename: String) {
+        if let idx = notes.firstIndex(where: { $0.id == noteId }) {
+            notes[idx].imageAttachments.removeAll(where: { $0 == filename })
+            notes[idx].updatedAt = Date()
+            requestSave()
+        }
+        let fileURL = attachmentURL(for: noteId, filename: filename)
+        try? fileManager.removeItem(at: fileURL)
+        AppLogger.info("Removed image attachment '\(filename)' from note \(noteId)")
+    }
+    
     public func permanentlyDeleteNote(id: UUID) {
+        let noteDir = attachmentsDirectory.appendingPathComponent(id.uuidString, isDirectory: true)
+        try? fileManager.removeItem(at: noteDir)
         deletedNotes.removeAll(where: { $0.id == id })
         requestSave()
         AppLogger.info("Permanently deleted note with id: \(id)")
     }
     
     public func emptyTrash() {
+        for note in deletedNotes {
+            let noteDir = attachmentsDirectory.appendingPathComponent(note.id.uuidString, isDirectory: true)
+            try? fileManager.removeItem(at: noteDir)
+        }
         let count = deletedNotes.count
         deletedNotes.removeAll()
         requestSave()

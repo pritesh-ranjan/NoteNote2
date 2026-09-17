@@ -28,8 +28,11 @@ fi
 # PkgInfo
 echo -n "APPL????" > "${CONTENTS_DIR}/PkgInfo"
 
-# Ad-hoc sign so system prompts display NoteNote
-codesign -s - --force --deep "${BUNDLE_DIR}"
+# Ad-hoc sign with consistent bundle identifier and stable designated requirement for TCC persistence across rebuilds and restarts
+codesign -s - --force --deep -i "com.priteshranjan.NoteNote" -r='designated => identifier "com.priteshranjan.NoteNote"' "${BUNDLE_DIR}"
 
-echo "✅ Successfully built ${BUNDLE_DIR}!"
+# Register with macOS LaunchServices so system permissions (TCC) recognize the bundle
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${BUNDLE_DIR}"
+
+echo "✅ Successfully built and registered ${BUNDLE_DIR}!"
 echo "👉 You can run it now with: open ${BUNDLE_DIR}"

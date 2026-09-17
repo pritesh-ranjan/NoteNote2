@@ -33,6 +33,19 @@ private class DragNSView: NSView {
     }
     
     override func mouseDown(with event: NSEvent) {
-        window?.performDrag(with: event)
+        guard let window = self.window else { return }
+        window.orderFrontRegardless()
+        window.makeKeyAndOrderFront(nil)
+        
+        let originalLevel = window.level
+        if window.level < .floating {
+            window.level = .floating
+        }
+        window.orderFrontRegardless()
+        
+        window.performDrag(with: event)
+        
+        window.level = originalLevel
+        window.orderFrontRegardless()
     }
 }

@@ -29,6 +29,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     public var updatedAt: Date
     public var isArchived: Bool
     public var deletedAt: Date?
+    public var imageAttachments: [String]
     
     public init(
         id: UUID = UUID(),
@@ -52,7 +53,8 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isArchived: Bool = false,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        imageAttachments: [String] = []
     ) {
         self.id = id
         self.title = title
@@ -76,6 +78,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.updatedAt = updatedAt
         self.isArchived = isArchived
         self.deletedAt = deletedAt
+        self.imageAttachments = imageAttachments
     }
     
     enum CodingKeys: String, CodingKey {
@@ -85,6 +88,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         case frameX, frameY, frameWidth, frameHeight
         case fontSize
         case createdAt, updatedAt, isArchived, deletedAt
+        case imageAttachments
     }
     
     public init(from decoder: Decoder) throws {
@@ -111,6 +115,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         self.isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         self.deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+        self.imageAttachments = try container.decodeIfPresent([String].self, forKey: .imageAttachments) ?? []
     }
     
     public var displayTitle: String {

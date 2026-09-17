@@ -25,6 +25,7 @@ public final class WelcomeWindowController {
         win.center()
         win.title = "Welcome to NoteNote"
         win.isReleasedWhenClosed = false
+        win.level = .floating // Prominently displayed above any floating stickies
         
         let welcomeView = WelcomeView(onClose: { [weak self] in
             self?.close()
@@ -38,6 +39,7 @@ public final class WelcomeWindowController {
     
     public func close() {
         window?.orderOut(nil)
+        window = nil
         StickyWindowManager.shared.bringAllToFront()
     }
 }

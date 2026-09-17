@@ -24,6 +24,7 @@ public final class StickyPanel: NSPanel {
         self.hasShadow = false
         self.isMovable = true
         self.isMovableByWindowBackground = true
+        self.becomesKeyOnlyIfNeeded = false
         self.minSize = NSSize(width: 180, height: 120)
         self.titleVisibility = .hidden
         self.titlebarAppearsTransparent = true
@@ -81,6 +82,10 @@ public final class StickyPanel: NSPanel {
     
     // MARK: - Native Gesture Routing (3-finger & 2-finger swipes anywhere in active note)
     public override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown {
+            self.orderFrontRegardless()
+        }
+        
         if event.type == .swipe {
             self.swipe(with: event)
             return
@@ -248,21 +253,62 @@ public final class StickyPanel: NSPanel {
         return nil
     }
     
+    public func focusEditor() {
+        guard let contentView = self.contentView,
+              let textView = findStickyTextView(in: contentView) else { return }
+        self.makeFirstResponder(textView)
+        let len = textView.string.count
+        textView.setSelectedRange(NSRange(location: len, length: 0))
+    }
+    
+    public func activateAndFocus() {
+        if let note = NotesStore.shared.notes.first(where: { $0.id == self.noteId }) {
+            self.alphaValue = CGFloat(max(0.2, min(1.0, note.opacity)))
+        }
+        
+        if #available(macOS 14.0, *) {
+            NSRunningApplication.current.activate(options: [.activateAllWindows])
+            NSApp.activate()
+        } else {
+            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        
+        self.orderFrontRegardless()
+        self.makeKeyAndOrderFront(nil)
+        self.makeKey()
+        
+        self.focusEditor()
+    }
+    
     public func updateAttributes(
         isPrivate: Bool,
         opacity: Double,
-        isPinned: Bool
+        isPinned: Bool,
+        isLinkedAppActive: Bool = false
     ) {
-        self.isFloatingPanel = isPinned
+        let shouldFloat = isPinned || isLinkedAppActive
+        let targetLevel: NSWindow.Level = shouldFloat ? .floating : .normal
+        if self.level != targetLevel {
+            self.level = targetLevel
+        }
+        if self.isFloatingPanel != shouldFloat {
+            self.isFloatingPanel = shouldFloat
+        }
         self.hidesOnDeactivate = false
-        self.level = isPinned ? .floating : .normal
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
         // Hide From Screen Sharing / Recording (Zoom, Teams, Screenshots)
-        self.sharingType = isPrivate ? .none : .readOnly
+        let targetSharing: NSWindow.SharingType = isPrivate ? .none : .readOnly
+        if self.sharingType != targetSharing {
+            self.sharingType = targetSharing
+        }
         
         // Opacity / Ghost mode
-        self.alphaValue = CGFloat(max(0.2, min(1.0, opacity)))
+        let targetAlpha = CGFloat(max(0.2, min(1.0, opacity)))
+        if abs(self.alphaValue - targetAlpha) > 0.001 {
+            self.alphaValue = targetAlpha
+        }
         
         // Ensure panel is always interactable (cannot be made unclickable)
         self.ignoresMouseEvents = false

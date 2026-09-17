@@ -57,6 +57,16 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         quickAddItem.target = self
         menu.addItem(quickAddItem)
         
+        // 2b. Capture Screen as Sticky
+        let captureItem = NSMenuItem(
+            title: "Capture Screen as Sticky...",
+            action: #selector(captureScreenAction),
+            keyEquivalent: "s"
+        )
+        captureItem.keyEquivalentModifierMask = [.command, .option]
+        captureItem.target = self
+        menu.addItem(captureItem)
+        
         // 3. Search Notes (Spotlight Search HUD)
         let searchItem = NSMenuItem(
             title: "Search Notes...",
@@ -65,17 +75,6 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         )
         searchItem.target = self
         menu.addItem(searchItem)
-        
-        // 3b. Note Navigation (Swipe Left/Right equivalents)
-        let nextNoteItem = NSMenuItem(title: "Next Note", action: #selector(nextNoteAction), keyEquivalent: "]")
-        nextNoteItem.keyEquivalentModifierMask = [.command]
-        nextNoteItem.target = self
-        menu.addItem(nextNoteItem)
-        
-        let prevNoteItem = NSMenuItem(title: "Previous Note", action: #selector(prevNoteAction), keyEquivalent: "[")
-        prevNoteItem.keyEquivalentModifierMask = [.command]
-        prevNoteItem.target = self
-        menu.addItem(prevNoteItem)
         
         menu.addItem(NSMenuItem.separator())
         
@@ -209,16 +208,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         StickyWindowManager.shared.focusNote(id: note.id)
     }
 
-    @objc private func nextNoteAction() {
-        let keyPanel = NSApp.keyWindow as? StickyPanel
-        let currentId = keyPanel?.noteId ?? NotesStore.shared.notes.first?.id ?? UUID()
-        GestureController.shared.switchToNextNote(from: currentId)
-    }
-    
-    @objc private func prevNoteAction() {
-        let keyPanel = NSApp.keyWindow as? StickyPanel
-        let currentId = keyPanel?.noteId ?? NotesStore.shared.notes.first?.id ?? UUID()
-        GestureController.shared.switchToPreviousNote(from: currentId)
+    @objc private func captureScreenAction() {
+        ScreenCaptureService.shared.captureScreenInteractive()
     }
 
     

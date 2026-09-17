@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 public struct StickyNoteView: View {
     let noteId: UUID
@@ -7,20 +8,28 @@ public struct StickyNoteView: View {
     @ObservedObject private var gestureController = GestureController.shared
     @State private var isUnlocked: Bool = false
     @State private var showingAppPicker: Bool = false
+    @State private var isDropTargeted: Bool = false
     
     public init(noteId: UUID) {
         self.noteId = noteId
     }
     
-    private var noteIndex: Int? {
-        store.notes.firstIndex(where: { $0.id == noteId })
+    private var currentNoteBinding: Binding<NoteModel>? {
+        guard let note = store.notes.first(where: { $0.id == noteId }) else { return nil }
+        return Binding<NoteModel>(
+            get: {
+                self.store.notes.first(where: { $0.id == self.noteId }) ?? note
+            },
+            set: { updated in
+                self.store.updateNote(updated)
+            }
+        )
     }
     
     public var body: some View {
         Group {
-            if let idx = noteIndex {
-                let noteBinding = $store.notes[idx]
-                let note = store.notes[idx]
+            if let noteBinding = currentNoteBinding {
+                let note = noteBinding.wrappedValue
                 
                 Group {
                     if note.isDocked {
@@ -93,15 +102,31 @@ public struct StickyNoteView: View {
                 }
             )
             
-            NoteEditorView(
-                content: note.content,
-                fontSize: note.fontSize,
-                noteColor: note.wrappedValue.color,
-                onContentChanged: {
-                    store.requestSave()
+            // Note Body: Attachments Strip + Editor
+            VStack(spacing: 0) {
+                if !note.wrappedValue.imageAttachments.isEmpty {
+                    NoteAttachmentStripView(
+                        noteId: note.wrappedValue.id,
+                        attachments: note.wrappedValue.imageAttachments,
+                        onRemove: { filename in
+                            store.removeImageAttachment(from: note.wrappedValue.id, filename: filename)
+                        }
+                    )
                 }
-            )
+                
+                NoteEditorView(
+                    noteId: note.wrappedValue.id,
+                    content: note.content,
+                    fontSize: note.fontSize,
+                    noteColor: note.wrappedValue.color,
+                    onContentChanged: {
+                        store.requestSave()
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .noteBodyContextMenu(noteId: note.wrappedValue.id)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
@@ -110,8 +135,18 @@ public struct StickyNoteView: View {
                     VisualEffectView(material: .popover, blendingMode: .behindWindow)
                 } else {
                     note.wrappedValue.color.backgroundColor
+                    PaperPatternView(pattern: note.wrappedValue.color.paperPattern)
                 }
             }
+        )
+        .onDrop(of: [.image, .fileURL], isTargeted: $isDropTargeted) { providers in
+            handleDroppedItems(providers)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(note.wrappedValue.color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                .opacity(isDropTargeted ? 1.0 : 0.0)
+                .allowsHitTesting(false)
         )
     }
     
@@ -181,8 +216,7 @@ public struct StickyNoteView: View {
     }
     
     private func handleLockShortcutAction() {
-        guard let idx = noteIndex else { return }
-        let currentNote = store.notes[idx]
+        guard let currentNote = store.notes.first(where: { $0.id == noteId }) else { return }
         
         if !currentNote.isLocked {
             // Note is not locked -> Lock it immediately
@@ -212,5 +246,47 @@ public struct StickyNoteView: View {
                 }
             }
         }
+    }
+    
+    private func handleDroppedItems(_ providers: [NSItemProvider]) -> Bool {
+        for provider in providers {
+            if provider.canLoadObject(ofClass: NSImage.self) {
+                _ = provider.loadObject(ofClass: NSImage.self) { image, _ in
+                    if let nsImage = image as? NSImage {
+                        DispatchQueue.main.async {
+                            showImageMenu(for: nsImage)
+                        }
+                    }
+                }
+                return true
+            } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    let url: URL? = {
+                        if let data = item as? Data {
+                            return URL(dataRepresentation: data, relativeTo: nil)
+                        } else if let u = item as? URL {
+                            return u
+                        }
+                        return nil
+                    }()
+                    
+                    if let fileURL = url, let img = NSImage(contentsOf: fileURL), img.isValid {
+                        DispatchQueue.main.async {
+                            showImageMenu(for: img)
+                        }
+                    }
+                }
+                return true
+            }
+        }
+        return false
+    }
+    
+    private func showImageMenu(for image: NSImage) {
+        let currentWindow = NSApp.windows.first(where: { ($0 as? StickyPanel)?.noteId == noteId }) ?? NSApp.keyWindow
+        guard let window = currentWindow, let contentView = window.contentView else { return }
+        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let viewPoint = contentView.convert(windowPoint, from: nil)
+        NoteBodyContextMenu.showImageActionMenu(for: image, noteId: noteId, at: viewPoint, in: contentView)
     }
 }

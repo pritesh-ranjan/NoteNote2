@@ -126,17 +126,15 @@ public struct SettingsView: View {
                         ) {
                             Picker("", selection: $store.settings.defaultColor) {
                                 ForEach(NoteColor.allCases) { color in
-                                    HStack {
-                                        Circle()
-                                            .fill(color.dotColor)
-                                            .frame(width: 8, height: 8)
+                                    HStack(spacing: 8) {
+                                        NoteColorSwatchView(color: color, size: 12)
                                         Text(color.displayName)
                                     }
                                     .tag(color)
                                 }
                             }
                             .labelsHidden()
-                            .frame(width: 140)
+                            .frame(width: 170)
                             .onChange(of: store.settings.defaultColor) { _, _ in
                                 store.requestSave()
                             }

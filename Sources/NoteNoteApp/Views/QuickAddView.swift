@@ -6,7 +6,7 @@ public struct QuickAddView: View {
     let onDismiss: () -> Void
     
     @State private var text: String = ""
-    @State private var selectedColor: NoteColor = NoteColor.allCases.randomElement() ?? .yellow
+    @State private var selectedColor: NoteColor = NoteColor.randomCases.randomElement() ?? .yellow
     
     public init(onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
@@ -27,21 +27,10 @@ public struct QuickAddView: View {
                 
                 Spacer()
                 
-                // Color selector pills
-                HStack(spacing: 6) {
+                // Unified color swatches (no divider, no separation)
+                HStack(spacing: 5) {
                     ForEach(NoteColor.allCases) { color in
-                        Button {
-                            selectedColor = color
-                        } label: {
-                            Circle()
-                                .fill(color.dotColor)
-                                .frame(width: 14, height: 14)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: selectedColor == color ? 2 : 0)
-                                )
-                        }
-                        .buttonStyle(.plain)
+                        colorButton(color)
                     }
                 }
                 
@@ -109,8 +98,19 @@ public struct QuickAddView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .spotlightHUDStyle()
         .onAppear {
-            selectedColor = NoteColor.allCases.randomElement() ?? .yellow
+            selectedColor = NoteColor.randomCases.randomElement() ?? .yellow
         }
+    }
+    
+    @ViewBuilder
+    private func colorButton(_ color: NoteColor) -> some View {
+        Button {
+            selectedColor = color
+        } label: {
+            NoteColorSwatchView(color: color, size: 14, isSelected: selectedColor == color)
+        }
+        .buttonStyle(.plain)
+        .help(color.displayName)
     }
     
     @MainActor

@@ -2,21 +2,27 @@ import SwiftUI
 import AppKit
 
 public struct NoteEditorView: View {
+    let noteId: UUID
     @Binding var content: String
     @Binding var fontSize: Double
     let noteColor: NoteColor
     let onContentChanged: () -> Void
+    var onImagePasted: ((NSImage) -> Void)?
     
     public init(
+        noteId: UUID = UUID(),
         content: Binding<String>,
         fontSize: Binding<Double> = .constant(13.0),
         noteColor: NoteColor,
-        onContentChanged: @escaping () -> Void
+        onContentChanged: @escaping () -> Void,
+        onImagePasted: ((NSImage) -> Void)? = nil
     ) {
+        self.noteId = noteId
         self._content = content
         self._fontSize = fontSize
         self.noteColor = noteColor
         self.onContentChanged = onContentChanged
+        self.onImagePasted = onImagePasted
     }
     
     public var body: some View {
@@ -41,10 +47,12 @@ public struct NoteEditorView: View {
                     }
                     
                     MacTextEditor(
+                        noteId: noteId,
                         text: $content,
                         fontSize: $fontSize,
                         noteColor: noteColor,
-                        onChange: onContentChanged
+                        onChange: onContentChanged,
+                        onImagePasted: onImagePasted
                     )
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
@@ -142,16 +150,27 @@ public struct NoteEditorView: View {
 
 // MARK: - Native AppKit NSTextView Representable for responsive editing
 public struct MacTextEditor: NSViewRepresentable {
+    var noteId: UUID?
     @Binding var text: String
     @Binding var fontSize: Double
     var noteColor: NoteColor
     var onChange: () -> Void
+    var onImagePasted: ((NSImage) -> Void)?
     
-    public init(text: Binding<String>, fontSize: Binding<Double>, noteColor: NoteColor, onChange: @escaping () -> Void) {
+    public init(
+        noteId: UUID? = nil,
+        text: Binding<String>,
+        fontSize: Binding<Double>,
+        noteColor: NoteColor,
+        onChange: @escaping () -> Void,
+        onImagePasted: ((NSImage) -> Void)? = nil
+    ) {
+        self.noteId = noteId
         self._text = text
         self._fontSize = fontSize
         self.noteColor = noteColor
         self.onChange = onChange
+        self.onImagePasted = onImagePasted
     }
     
     public func makeCoordinator() -> Coordinator {
@@ -177,6 +196,8 @@ public struct MacTextEditor: NSViewRepresentable {
         layoutManager.addTextContainer(textContainer)
         
         let textView = StickyTextView(frame: NSRect(origin: .zero, size: contentSize), textContainer: textContainer)
+        textView.noteId = noteId
+        textView.onImagePasted = onImagePasted
         textView.minSize = NSSize(width: 0.0, height: contentSize.height)
         textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.isVerticallyResizable = true
@@ -185,7 +206,7 @@ public struct MacTextEditor: NSViewRepresentable {
         textView.drawsBackground = false
         textView.backgroundColor = .clear
         textView.currentFontSize = CGFloat(fontSize)
-        textView.font = NSFont.systemFont(ofSize: CGFloat(fontSize), weight: .regular)
+        textView.font = noteColor.font(ofSize: CGFloat(fontSize), weight: .regular)
         textView.delegate = context.coordinator
         textView.isRichText = true
         textView.importsGraphics = false
@@ -195,6 +216,10 @@ public struct MacTextEditor: NSViewRepresentable {
         textView.allowsUndo = true
         textView.textContainerInset = NSSize(width: 4, height: 4)
         textView.noteColor = noteColor
+        textView.insertionPointColor = noteColor.nsAccentColor
+        textView.selectedTextAttributes = [
+            .backgroundColor: noteColor.nsAccentColor.withAlphaComponent(0.25)
+        ]
         
         textView.onFontSizeChanged = { [weak coordinator = context.coordinator] newSize in
             coordinator?.parent.fontSize = Double(newSize)
@@ -212,6 +237,9 @@ public struct MacTextEditor: NSViewRepresentable {
     public func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? StickyTextView else { return }
         
+        textView.noteId = noteId
+        textView.onImagePasted = onImagePasted
+        
         let colorChanged = textView.noteColor != noteColor
         textView.noteColor = noteColor
         if let lm = textView.layoutManager as? StickyLayoutManager {
@@ -219,9 +247,9 @@ public struct MacTextEditor: NSViewRepresentable {
         }
         
         let fontChanged = abs(textView.currentFontSize - CGFloat(fontSize)) >= 0.5
-        if fontChanged {
+        if fontChanged || colorChanged {
             textView.currentFontSize = CGFloat(fontSize)
-            textView.font = NSFont.systemFont(ofSize: CGFloat(fontSize), weight: .regular)
+            textView.font = noteColor.font(ofSize: CGFloat(fontSize), weight: .regular)
         }
         
         if textView.string != text {
@@ -304,15 +332,29 @@ public final class StickyLayoutManager: NSLayoutManager {
 }
 
 public final class StickyTextView: NSTextView {
+    public var noteId: UUID?
+    public var onImagePasted: ((NSImage) -> Void)?
+    
     public var noteColor: NoteColor = .yellow {
         didSet {
             if let lm = self.layoutManager as? StickyLayoutManager {
                 lm.noteColor = noteColor
             }
+            self.insertionPointColor = noteColor.nsAccentColor
+            self.selectedTextAttributes = [
+                .backgroundColor: noteColor.nsAccentColor.withAlphaComponent(0.25)
+            ]
         }
     }
     public var currentFontSize: CGFloat = 13.0
     public var onFontSizeChanged: ((CGFloat) -> Void)?
+    
+    public override func menu(for event: NSEvent) -> NSMenu? {
+        if let id = noteId {
+            return NoteBodyContextMenu.makeMenu(for: id, targetTextView: self)
+        }
+        return super.menu(for: event)
+    }
     
     private var isRenderingMarkdown = false
     private var lastActiveLineRange: NSRange?
@@ -323,7 +365,7 @@ public final class StickyTextView: NSTextView {
             style.lineSpacing = max(2.0, currentFontSize * 0.25)
             style.paragraphSpacing = max(2.0, currentFontSize * 0.22)
             return [
-                .font: NSFont.systemFont(ofSize: currentFontSize, weight: .regular),
+                .font: noteColor.font(ofSize: currentFontSize, weight: .regular),
                 .foregroundColor: noteColor.nsTextColor,
                 .paragraphStyle: style
             ]
@@ -585,7 +627,38 @@ public final class StickyTextView: NSTextView {
     
     public override func paste(_ sender: Any?) {
         let pasteboard = NSPasteboard.general
-        if let text = pasteboard.string(forType: .string) {
+        let stringContent = pasteboard.string(forType: .string)
+        let hasString = stringContent != nil && !stringContent!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasExplicitImage = pasteboard.canReadItem(withDataConformingToTypes: [
+            NSPasteboard.PasteboardType.png.rawValue,
+            NSPasteboard.PasteboardType.tiff.rawValue
+        ])
+        
+        if (hasExplicitImage || !hasString),
+           let img = NoteBodyContextMenu.clipboardImage() {
+            if let id = self.noteId {
+                var menuLocation = NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+                let sel = self.selectedRange()
+                if let lm = self.layoutManager, let tc = self.textContainer {
+                    let charLen = (self.string as NSString).length
+                    let glyphIndex = lm.glyphIndexForCharacter(at: min(sel.location, max(0, charLen)))
+                    let glyphRect = lm.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 0), in: tc)
+                    if glyphRect.width > 0 || glyphRect.height > 0 {
+                        menuLocation = NSPoint(x: max(10, glyphRect.minX + self.textContainerInset.width),
+                                               y: max(10, glyphRect.maxY + self.textContainerInset.height))
+                    }
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    NoteBodyContextMenu.showImageActionMenu(for: img, noteId: id, at: menuLocation, in: self)
+                }
+            } else if let onImagePasted = onImagePasted {
+                onImagePasted(img)
+            }
+            return
+        }
+        
+        if let text = stringContent {
             let selectedRange = self.selectedRange()
             if self.shouldChangeText(in: selectedRange, replacementString: text) {
                 self.replaceCharacters(in: selectedRange, with: text)
@@ -851,5 +924,69 @@ public final class StickyTextView: NSTextView {
         }
         
         super.mouseDown(with: event)
+    }
+    
+    // MARK: - Drag & Drop Overrides (Intercept image files to show action options instead of file path)
+    public override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if extractDraggedImage(sender) != nil {
+            return .copy
+        }
+        return super.draggingEntered(sender)
+    }
+    
+    public override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        if extractDraggedImage(sender) != nil {
+            return .copy
+        }
+        return super.draggingUpdated(sender)
+    }
+    
+    public override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        if let image = extractDraggedImage(sender) {
+            if let id = self.noteId {
+                let dropPoint = self.convert(sender.draggingLocation, from: nil)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    NoteBodyContextMenu.showImageActionMenu(for: image, noteId: id, at: dropPoint, in: self)
+                }
+                return true
+            } else if let onImagePasted = self.onImagePasted {
+                onImagePasted(image)
+                return true
+            }
+        }
+        return super.performDragOperation(sender)
+    }
+    
+    private func extractDraggedImage(_ sender: NSDraggingInfo) -> NSImage? {
+        let pb = sender.draggingPasteboard
+        
+        // 1. Direct NSImage objects
+        if let images = pb.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
+           let first = images.first {
+            return first
+        }
+        
+        // 2. File URLs matching image extensions
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let imageExtensions = Set(["png", "jpg", "jpeg", "heic", "tiff", "gif", "webp", "bmp", "pdf"])
+            for url in urls {
+                if imageExtensions.contains(url.pathExtension.lowercased()) {
+                    if let img = NSImage(contentsOf: url), img.isValid {
+                        return img
+                    }
+                }
+            }
+        }
+        
+        // 3. Raw image data (TIFF / PNG)
+        if let tiffData = pb.data(forType: .tiff), let img = NSImage(data: tiffData), img.isValid {
+            return img
+        }
+        if let pngData = pb.data(forType: .png), let img = NSImage(data: pngData), img.isValid {
+            return img
+        }
+        
+        return nil
     }
 }
