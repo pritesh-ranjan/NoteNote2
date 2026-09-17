@@ -400,6 +400,24 @@ public final class StickyTextView: NSTextView {
         }
     }
     
+    // MARK: - Swipe Gesture Forwarding to StickyPanel
+    public override func swipe(with event: NSEvent) {
+        if let panel = self.window as? StickyPanel {
+            panel.swipe(with: event)
+        } else {
+            super.swipe(with: event)
+        }
+    }
+    
+    public override func scrollWheel(with event: NSEvent) {
+        if let panel = self.window as? StickyPanel {
+            if panel.handleScrollWheelGesture(event) {
+                return
+            }
+        }
+        super.scrollWheel(with: event)
+    }
+    
     // MARK: - Key Equivalents (Copy, Paste, Cut, Select All, Undo/Redo, Zoom, Ctrl+B/I/U, Cmd+B/I/U, Cmd+L)
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -512,6 +530,20 @@ public final class StickyTextView: NSTextView {
             if key == "p" && isCommand && !isShift && !isControl {
                 if let panel = self.window as? StickyPanel {
                     NotesStore.shared.togglePin(id: panel.noteId)
+                    return true
+                }
+            }
+            // 15. Next Note (⌘])
+            if (key == "]" || key == "}") && isCommand && !isControl {
+                if let panel = self.window as? StickyPanel {
+                    GestureController.shared.switchToNextNote(from: panel.noteId)
+                    return true
+                }
+            }
+            // 16. Previous Note (⌘[)
+            if (key == "[" || key == "{") && isCommand && !isControl {
+                if let panel = self.window as? StickyPanel {
+                    GestureController.shared.switchToPreviousNote(from: panel.noteId)
                     return true
                 }
             }

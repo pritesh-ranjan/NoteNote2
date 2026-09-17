@@ -78,8 +78,9 @@ public struct QuickAddView: View {
                     }
                 )
                 .padding(.horizontal, 12)
-                .frame(minHeight: 80, maxHeight: 110)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             Divider()
                 .background(Color.white.opacity(0.12))
@@ -105,6 +106,7 @@ public struct QuickAddView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .spotlightHUDStyle()
         .onAppear {
             selectedColor = NoteColor.allCases.randomElement() ?? .yellow

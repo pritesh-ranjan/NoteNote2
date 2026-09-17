@@ -92,7 +92,24 @@ public final class SpotlightHUDPanel: NSPanel {
         }
     }
     
+    public override var contentView: NSView? {
+        didSet {
+            setupContentView()
+        }
+    }
+    
+    private func setupContentView() {
+        guard let cv = self.contentView else { return }
+        cv.wantsLayer = true
+        cv.layer?.cornerRadius = 16
+        cv.layer?.cornerCurve = .continuous
+        cv.layer?.masksToBounds = true
+        cv.layer?.backgroundColor = NSColor.clear.cgColor
+    }
+    
     public func present() {
+        setupContentView()
+        invalidateShadow()
         makeKeyAndOrderFront(nil)
         makeKey()
         NSApp.activate(ignoringOtherApps: true)
@@ -119,19 +136,18 @@ public final class SpotlightHUDPanel: NSPanel {
 public struct SpotlightHUDStyle: ViewModifier {
     public func body(content: Content) -> some View {
         content
-            .frame(width: SpotlightHUDPanel.standardWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 ZStack {
-                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                    VisualEffectView(material: .hudWindow, blendingMode: .behindWindow, cornerRadius: 16)
                     Color(red: 0.12, green: 0.13, blue: 0.16).opacity(0.85)
                 }
             )
-            .cornerRadius(14)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.55), radius: 26, x: 0, y: 12)
     }
 }
 

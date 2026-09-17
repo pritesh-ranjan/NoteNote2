@@ -86,7 +86,7 @@ public struct SearchNotesView: View {
                         .foregroundColor(Color.white.opacity(0.5))
                     Spacer()
                 }
-                .frame(height: 180)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -107,7 +107,7 @@ public struct SearchNotesView: View {
                         .padding(.vertical, 8)
                         .padding(.horizontal, 10)
                     }
-                    .frame(maxHeight: 280)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: selectedIndex) { _, newIndex in
                         proxy.scrollTo(newIndex, anchor: .center)
                     }
@@ -131,6 +131,7 @@ public struct SearchNotesView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .spotlightHUDStyle()
         .onChange(of: query) { _, _ in
             selectedIndex = 0

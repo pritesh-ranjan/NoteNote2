@@ -66,6 +66,17 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         searchItem.target = self
         menu.addItem(searchItem)
         
+        // 3b. Note Navigation (Swipe Left/Right equivalents)
+        let nextNoteItem = NSMenuItem(title: "Next Note", action: #selector(nextNoteAction), keyEquivalent: "]")
+        nextNoteItem.keyEquivalentModifierMask = [.command]
+        nextNoteItem.target = self
+        menu.addItem(nextNoteItem)
+        
+        let prevNoteItem = NSMenuItem(title: "Previous Note", action: #selector(prevNoteAction), keyEquivalent: "[")
+        prevNoteItem.keyEquivalentModifierMask = [.command]
+        prevNoteItem.target = self
+        menu.addItem(prevNoteItem)
+        
         menu.addItem(NSMenuItem.separator())
         
         // 4. Layout Submenu
@@ -196,6 +207,18 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         }
         let note = NotesStore.shared.createNote()
         StickyWindowManager.shared.focusNote(id: note.id)
+    }
+
+    @objc private func nextNoteAction() {
+        let keyPanel = NSApp.keyWindow as? StickyPanel
+        let currentId = keyPanel?.noteId ?? NotesStore.shared.notes.first?.id ?? UUID()
+        GestureController.shared.switchToNextNote(from: currentId)
+    }
+    
+    @objc private func prevNoteAction() {
+        let keyPanel = NSApp.keyWindow as? StickyPanel
+        let currentId = keyPanel?.noteId ?? NotesStore.shared.notes.first?.id ?? UUID()
+        GestureController.shared.switchToPreviousNote(from: currentId)
     }
 
     

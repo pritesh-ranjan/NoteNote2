@@ -9,6 +9,15 @@ public final class SearchNotesWindowController {
     
     private init() {}
     
+    public func presentSearch() {
+        if let win = window, win.isVisible {
+            win.makeKeyAndOrderFront(nil)
+            win.makeKey()
+            return
+        }
+        show()
+    }
+    
     public func show() {
         if let win = window, win.isVisible {
             win.dismiss()

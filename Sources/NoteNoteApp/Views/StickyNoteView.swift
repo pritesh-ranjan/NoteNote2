@@ -4,6 +4,7 @@ import AppKit
 public struct StickyNoteView: View {
     let noteId: UUID
     @StateObject private var store = NotesStore.shared
+    @ObservedObject private var gestureController = GestureController.shared
     @State private var isUnlocked: Bool = false
     @State private var showingAppPicker: Bool = false
     
@@ -36,6 +37,17 @@ public struct StickyNoteView: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: note.isDocked ? 10 : 14))
+                .overlay(alignment: .top) {
+                    if let feedback = gestureController.switchFeedback, feedback.id == noteId {
+                        NoteSwitchBadgeView(feedback: feedback, noteColor: note.color)
+                            .padding(.top, note.isDocked ? 6 : 38)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.92)).combined(with: .offset(y: -4)),
+                                removal: .opacity.combined(with: .scale(scale: 0.96))
+                            ))
+                            .allowsHitTesting(false)
+                    }
+                }
                 .sheet(isPresented: $showingAppPicker) {
                     AppPickerSheet(currentBundleId: note.linkedAppBundleId) { bundleId, appName in
                         store.setLinkedApp(id: note.id, bundleId: bundleId, appName: appName)

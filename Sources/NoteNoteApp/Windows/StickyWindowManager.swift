@@ -261,6 +261,9 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
             syncPanels(with: NotesStore.shared.notes)
         }
         guard let panel = panels[id] else { return }
+        if let note = NotesStore.shared.notes.first(where: { $0.id == id }) {
+            panel.alphaValue = CGFloat(max(0.2, min(1.0, note.opacity)))
+        }
         panel.orderFrontRegardless()
         panel.makeKeyAndOrderFront(nil)
         panel.makeKey()

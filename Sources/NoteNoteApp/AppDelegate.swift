@@ -41,6 +41,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--show-settings") {
             SettingsWindowController.shared.show()
         }
+        if CommandLine.arguments.contains("--show-shortcuts") {
+            SettingsWindowController.shared.show(tab: 1)
+        }
+        if CommandLine.arguments.contains("--show-gestures") {
+            SettingsWindowController.shared.show(tab: 1, scrollToGestures: true)
+        }
         if CommandLine.arguments.contains("--show-quickadd") {
             QuickAddWindowController.shared.show()
         }
