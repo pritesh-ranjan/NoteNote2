@@ -28,4 +28,6 @@ clean:
 	rm -rf NoteNote.dmg
 	rm -rf temp_*.dmg
 	rm -rf .dmg_staging
+	rm -f *.log
+	find . -name ".DS_Store" -depth -exec rm -f {} +
 	@echo "✨ Clean complete!"

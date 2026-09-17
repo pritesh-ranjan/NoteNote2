@@ -108,14 +108,6 @@ public enum NoteColor: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
     
-    public var headerBackground: Color {
-        return Color.clear
-    }
-    
-    public var borderColor: Color {
-        return Color.clear
-    }
-    
     public var dotColor: Color {
         switch self {
         case .yellow: return Color(red: 0.98, green: 0.82, blue: 0.20)
@@ -125,6 +117,18 @@ public enum NoteColor: String, CaseIterable, Codable, Identifiable, Sendable {
         case .purple: return Color(red: 0.75, green: 0.50, blue: 0.95)
         case .dark:   return Color(red: 0.35, green: 0.38, blue: 0.45)
         case .glass:  return Color.gray.opacity(0.6)
+        }
+    }
+    
+    public var nsDotColor: NSColor {
+        switch self {
+        case .yellow: return NSColor(red: 0.98, green: 0.82, blue: 0.20, alpha: 1.0)
+        case .pink:   return NSColor(red: 0.98, green: 0.55, blue: 0.65, alpha: 1.0)
+        case .green:  return NSColor(red: 0.35, green: 0.80, blue: 0.50, alpha: 1.0)
+        case .blue:   return NSColor(red: 0.35, green: 0.68, blue: 0.98, alpha: 1.0)
+        case .purple: return NSColor(red: 0.75, green: 0.50, blue: 0.95, alpha: 1.0)
+        case .dark:   return NSColor(red: 0.35, green: 0.38, blue: 0.45, alpha: 1.0)
+        case .glass:  return NSColor(white: 0.6, alpha: 0.85)
         }
     }
 }

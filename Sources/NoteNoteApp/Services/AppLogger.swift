@@ -16,29 +16,20 @@ public final class AppLogger {
     }
     
     private func setupLogFiles() {
-        var targets: [URL] = []
-        
-        // 1. App Support Directory: ~/Library/Application Support/NoteNote/notenote.log
-        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            let appDir = appSupport.appendingPathComponent("NoteNote", isDirectory: true)
-            try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
-            targets.append(appDir.appendingPathComponent("notenote.log"))
+        // Standard macOS App Support: ~/Library/Application Support/NoteNote/notenote.log
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return
         }
+        let appDir = appSupport.appendingPathComponent("NoteNote", isDirectory: true)
+        try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+        let logFileURL = appDir.appendingPathComponent("notenote.log")
         
-        // 2. Project Root Directory: /Users/priteshranjan/Documents/StickyNotesMac/notenote.log
-        let projectRoot = URL(fileURLWithPath: "/Users/priteshranjan/Documents/StickyNotesMac")
-        if FileManager.default.fileExists(atPath: projectRoot.path) {
-            targets.append(projectRoot.appendingPathComponent("notenote.log"))
+        if !FileManager.default.fileExists(atPath: logFileURL.path) {
+            FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
         }
-        
-        for url in targets {
-            if !FileManager.default.fileExists(atPath: url.path) {
-                FileManager.default.createFile(atPath: url.path, contents: nil)
-            }
-            if let handle = try? FileHandle(forWritingTo: url) {
-                handle.seekToEndOfFile()
-                fileHandles.append(handle)
-            }
+        if let handle = try? FileHandle(forWritingTo: logFileURL) {
+            handle.seekToEndOfFile()
+            fileHandles.append(handle)
         }
     }
     

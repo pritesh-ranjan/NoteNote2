@@ -44,6 +44,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--show-quickadd") {
             QuickAddWindowController.shared.show()
         }
+        if CommandLine.arguments.contains("--show-search") {
+            SearchNotesWindowController.shared.show()
+        }
+        if CommandLine.arguments.contains("--show-trash") {
+            TrashWindowController.shared.show()
+        }
         if CommandLine.arguments.contains("--show-welcome") {
             WelcomeWindowController.shared.show()
         }

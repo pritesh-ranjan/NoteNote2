@@ -4,10 +4,8 @@ import AppKit
 public struct NoteHeaderView: View {
     @Binding var note: NoteModel
     let onNewNote: () -> Void
-    let onColorChange: (NoteColor) -> Void
     let onDelete: () -> Void
     let onLockNow: () -> Void
-    let onRemoveLock: () -> Void
     let onTogglePrivate: () -> Void
     let onTogglePin: () -> Void
     let onShowAppPicker: () -> Void
@@ -15,10 +13,6 @@ public struct NoteHeaderView: View {
     @State private var isHovering = false
     @State private var isCloseHovered = false
     @State private var isNewNoteHovered = false
-    @State private var isLockHovered = false
-    @State private var isShieldHovered = false
-    @State private var isPinHovered = false
-    @State private var isLinkHovered = false
     
     private var showButtons: Bool {
         isHovering
@@ -27,20 +21,16 @@ public struct NoteHeaderView: View {
     public init(
         note: Binding<NoteModel>,
         onNewNote: @escaping () -> Void,
-        onColorChange: @escaping (NoteColor) -> Void,
         onDelete: @escaping () -> Void,
         onLockNow: @escaping () -> Void,
-        onRemoveLock: @escaping () -> Void,
         onTogglePrivate: @escaping () -> Void,
         onTogglePin: @escaping () -> Void,
         onShowAppPicker: @escaping () -> Void
     ) {
         self._note = note
         self.onNewNote = onNewNote
-        self.onColorChange = onColorChange
         self.onDelete = onDelete
         self.onLockNow = onLockNow
-        self.onRemoveLock = onRemoveLock
         self.onTogglePrivate = onTogglePrivate
         self.onTogglePin = onTogglePin
         self.onShowAppPicker = onShowAppPicker
@@ -116,105 +106,54 @@ public struct NoteHeaderView: View {
                 
                 Spacer()
                 
-                // Right action buttons (Link App, Privacy Shield, Lock)
+                // Right action buttons (Link App, Privacy Shield, Pin, Lock)
                 HStack(spacing: 4) {
-                    // 4. Link App Button (shown on hover if note not already linked)
+                    // Link App Button (shown on hover if note not already linked)
                     if note.linkedAppBundleId == nil || note.linkedAppBundleId?.isEmpty == true {
-                        Button(action: onShowAppPicker) {
-                            Image(systemName: "link")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(note.color.textColor.opacity(isLinkHovered ? 0.9 : 0.5))
-                                .scaleEffect(isLinkHovered ? 1.15 : 1.0)
-                                .animation(.easeInOut(duration: 0.12), value: isLinkHovered)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Link Note to an Application...")
-                        .onHover { isLinkHovered = $0 }
-                        .opacity(showButtons ? 1.0 : 0.0)
-                        .allowsHitTesting(showButtons)
+                        HeaderIconButton(
+                            icon: "link",
+                            isActive: false,
+                            accentColor: note.color.accentColor,
+                            baseColor: note.color.textColor,
+                            help: "Link Note to an Application...",
+                            isVisible: showButtons,
+                            action: onShowAppPicker
+                        )
                     }
                     
-                    // 5. Screen Privacy Shield Toggle
-                    if note.isPrivate {
-                        Button(action: onTogglePrivate) {
-                            Image(systemName: "shield.fill")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(note.color.accentColor)
-                                .scaleEffect(isShieldHovered ? 1.15 : 1.0)
-                                .animation(.easeInOut(duration: 0.12), value: isShieldHovered)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Screen Privacy Shield Active (Click to disable)")
-                        .onHover { isShieldHovered = $0 }
-                    } else {
-                        Button(action: onTogglePrivate) {
-                            Image(systemName: "shield")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(note.color.textColor.opacity(isShieldHovered ? 0.9 : 0.5))
-                                .scaleEffect(isShieldHovered ? 1.15 : 1.0)
-                                .animation(.easeInOut(duration: 0.12), value: isShieldHovered)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Enable Screen Privacy Shield")
-                        .onHover { isShieldHovered = $0 }
-                        .opacity(showButtons ? 1.0 : 0.0)
-                        .allowsHitTesting(showButtons)
-                    }
+                    // Screen Privacy Shield Toggle
+                    HeaderIconButton(
+                        icon: note.isPrivate ? "shield.fill" : "shield",
+                        isActive: note.isPrivate,
+                        accentColor: note.color.accentColor,
+                        baseColor: note.color.textColor,
+                        help: note.isPrivate ? "Screen Privacy Shield Active (Click to disable)" : "Enable Screen Privacy Shield",
+                        isVisible: note.isPrivate || showButtons,
+                        action: onTogglePrivate
+                    )
                     
-                    // 6. Pin / Always on Top Toggle Button
-                    if note.isPinned {
-                        Button(action: onTogglePin) {
-                            Image(systemName: "pin.fill")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(note.color.accentColor)
-                                .scaleEffect(isPinHovered ? 1.15 : 1.0)
-                                .animation(.easeInOut(duration: 0.12), value: isPinHovered)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Pinned on Top (Click to unpin, or press ⌘P)")
-                        .onHover { isPinHovered = $0 }
-                    } else {
-                        Button(action: onTogglePin) {
-                            Image(systemName: "pin")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(note.color.textColor.opacity(isPinHovered ? 0.9 : 0.5))
-                                .scaleEffect(isPinHovered ? 1.15 : 1.0)
-                                .animation(.easeInOut(duration: 0.12), value: isPinHovered)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Pin Note (Stay Always on Top, or press ⌘P)")
-                        .onHover { isPinHovered = $0 }
-                        .opacity(showButtons ? 1.0 : 0.0)
-                        .allowsHitTesting(showButtons)
-                    }
+                    // Pin / Always on Top Toggle Button
+                    HeaderIconButton(
+                        icon: note.isPinned ? "pin.fill" : "pin",
+                        isActive: note.isPinned,
+                        accentColor: note.color.accentColor,
+                        baseColor: note.color.textColor,
+                        help: note.isPinned ? "Pinned on Top (Click to unpin, or press ⌘P)" : "Pin Note (Stay Always on Top, or press ⌘P)",
+                        isVisible: note.isPinned || showButtons,
+                        action: onTogglePin
+                    )
                     
-                    // 7. Touch ID Lock indicator/button (only when protected)
+                    // Touch ID Lock indicator/button (only when protected)
                     if note.isLocked {
-                        Button(action: onLockNow) {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(note.color.accentColor)
-                                .scaleEffect(isLockHovered ? 1.15 : 1.0)
-                                .animation(.easeInOut(duration: 0.12), value: isLockHovered)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Protected Note (Click to lock now, or press ⌘L)")
-                        .onHover { isLockHovered = $0 }
-                        .opacity(showButtons ? 1.0 : 0.0)
-                        .scaleEffect(showButtons ? 1.0 : 0.6, anchor: .trailing)
-                        .allowsHitTesting(showButtons)
+                        HeaderIconButton(
+                            icon: "lock.fill",
+                            isActive: true,
+                            accentColor: note.color.accentColor,
+                            baseColor: note.color.textColor,
+                            help: "Protected Note (Click to lock now, or press ⌘L)",
+                            isVisible: showButtons,
+                            action: onLockNow
+                        )
                     }
                 }
             }
@@ -222,61 +161,42 @@ public struct NoteHeaderView: View {
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
-            .contextMenu {
-                // Color Themes
-                ForEach(NoteColor.allCases) { color in
-                    Button {
-                        onColorChange(color)
-                    } label: {
-                        if note.color == color {
-                            Label(color.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(color.displayName)
-                        }
-                    }
-                }
-                
-                Divider()
-                
-                // Pin / Always on Top
-                Button(action: onTogglePin) {
-                    if note.isPinned {
-                        Label("Always on Top: Pinned", systemImage: "pin.fill")
-                    } else {
-                        Label("Pin to Top (Always on Top)", systemImage: "pin")
-                    }
-                }
-                
-                // Screen Privacy Shield
-                Button(action: onTogglePrivate) {
-                    if note.isPrivate {
-                        Label("Privacy Shield: Enabled", systemImage: "shield.fill")
-                    } else {
-                        Label("Privacy Shield: Disabled", systemImage: "shield")
-                    }
-                }
-                
-                // App-Aware Linking
-                if let appName = note.linkedAppName, !appName.isEmpty {
-                    Button(action: onShowAppPicker) {
-                        Label("Change Linked App (\(appName))...", systemImage: "link")
-                    }
-                    Button {
-                        NotesStore.shared.setLinkedApp(id: note.id, bundleId: nil, appName: nil)
-                    } label: {
-                        Label("Unlink from \(appName)", systemImage: "link.badge.plus")
-                    }
-                } else {
-                    Button(action: onShowAppPicker) {
-                        Label("Link to Application...", systemImage: "link")
-                    }
-                }
-            }
+            .noteHeaderContextMenu(noteId: note.id)
         }
         .frame(height: 32)
         .contentShape(Rectangle())
         .onHover { hovering in
             self.isHovering = hovering
         }
+    }
+}
+
+// MARK: - Header Icon Button Subview
+private struct HeaderIconButton: View {
+    let icon: String
+    let isActive: Bool
+    let accentColor: Color
+    let baseColor: Color
+    let help: String
+    let isVisible: Bool
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: isActive ? .semibold : .medium))
+                .foregroundColor(isActive ? accentColor : baseColor.opacity(isHovered ? 0.9 : 0.5))
+                .scaleEffect(isHovered ? 1.15 : 1.0)
+                .animation(.easeInOut(duration: 0.12), value: isHovered)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .onHover { isHovered = $0 }
+        .opacity(isVisible ? 1.0 : 0.0)
+        .allowsHitTesting(isVisible)
     }
 }

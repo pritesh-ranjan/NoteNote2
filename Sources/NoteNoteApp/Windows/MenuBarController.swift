@@ -47,8 +47,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         newNoteItem.keyEquivalentModifierMask = [.command]
         newNoteItem.target = self
         menu.addItem(newNoteItem)
-        
-        // 2. Quick Add Sticky (Spotlight HUD)
+            // 2. Quick Add Sticky (Spotlight HUD)
         let quickAddItem = NSMenuItem(
             title: "Quick Add Sticky...",
             action: #selector(quickAddAction),
@@ -58,7 +57,16 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         quickAddItem.target = self
         menu.addItem(quickAddItem)
         
-
+        // 3. Search Notes (Spotlight Search HUD)
+        let searchItem = NSMenuItem(
+            title: "Search Notes...",
+            action: #selector(searchAction),
+            keyEquivalent: ""
+        )
+        searchItem.target = self
+        menu.addItem(searchItem)
+        
+        menu.addItem(NSMenuItem.separator())
         
         // 4. Layout Submenu
         let layoutMenu = NSMenu()
@@ -117,7 +125,20 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // 7. System & Startup Options
+        // 7. Trash & Recovery
+        let trashCount = NotesStore.shared.deletedNotes.count
+        let trashTitle = trashCount > 0 ? "Trash & Recovery (\(trashCount))..." : "Trash (Empty)..."
+        let trashItem = NSMenuItem(
+            title: trashTitle,
+            action: #selector(openTrashAction),
+            keyEquivalent: ""
+        )
+        trashItem.target = self
+        menu.addItem(trashItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // 8. System & Startup Options
         StartupService.shared.refreshStatus()
         let launchAtLoginItem = NSMenuItem(
             title: "Launch at Login",
@@ -138,7 +159,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         
         menu.addItem(NSMenuItem.separator())
         
-        // 8. Settings / Quit
+        // 9. Settings / Quit
         let settingsItem = NSMenuItem(
             title: "Preferences...",
             action: #selector(openSettingsAction),
@@ -157,6 +178,14 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     }
     
     // MARK: - Actions
+    @objc private func searchAction() {
+        SearchNotesWindowController.shared.show()
+    }
+    
+    @objc private func openTrashAction() {
+        TrashWindowController.shared.show()
+    }
+    
     @objc private func quickAddAction() {
         QuickAddWindowController.shared.show()
     }

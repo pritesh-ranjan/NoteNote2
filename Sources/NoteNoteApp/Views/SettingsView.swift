@@ -206,6 +206,36 @@ public struct SettingsView: View {
                         }
                     }
                 }
+                
+                // Section 3: Data & Storage
+                settingsSection(title: "Data & Storage") {
+                    VStack(spacing: 0) {
+                        settingRow(
+                            title: "Notes Storage File",
+                            subtitle: "Stored in a dedicated file (~/Library/Application Support/NoteNote/notes.json), safely preserved across app reinstalls"
+                        ) {
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([store.notesFileURL])
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        
+                        Divider()
+                            .padding(.leading, 14)
+                        
+                        settingRow(
+                            title: "Storage & Redundancy Folder",
+                            subtitle: "Contains active notes, live backup snapshot (notes.backup.json), and trash"
+                        ) {
+                            Button("Open Folder") {
+                                NSWorkspace.shared.open(store.storageDirectory)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
             }
             .padding(.horizontal, 22)
             .padding(.bottom, 16)
@@ -340,7 +370,7 @@ public struct SettingsView: View {
                 Text("NoteNote")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0") (macOS Native)")
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.0") (macOS Native)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Color(white: 0.6))
             }

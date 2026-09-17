@@ -44,6 +44,14 @@ public struct QuickAddView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                
+                Text("Esc")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color.white.opacity(0.4))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(4)
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
@@ -79,9 +87,9 @@ public struct QuickAddView: View {
             // Bottom bar with shortcut guide
             HStack {
                 HStack(spacing: 12) {
-                    shortcutBadge(key: "Esc", label: "Cancel")
-                    shortcutBadge(key: "⌘↵", label: "Save & Open")
-                    shortcutBadge(key: "↵", label: "Save Note")
+                    ShortcutBadgeView(key: "Esc", label: "Cancel")
+                    ShortcutBadgeView(key: "⌘↵", label: "Save & Open")
+                    ShortcutBadgeView(key: "↵", label: "Save Note")
                 }
                 
                 Spacer()
@@ -97,33 +105,9 @@ public struct QuickAddView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(red: 0.12, green: 0.13, blue: 0.15).opacity(0.96))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: 12)
-        .frame(width: 460)
+        .spotlightHUDStyle()
         .onAppear {
             selectedColor = NoteColor.allCases.randomElement() ?? .yellow
-        }
-    }
-    
-    private func shortcutBadge(key: String, label: String) -> some View {
-        HStack(spacing: 4) {
-            Text(key)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundColor(.white)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(Color.white.opacity(0.12))
-                .cornerRadius(4)
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.5))
         }
     }
     

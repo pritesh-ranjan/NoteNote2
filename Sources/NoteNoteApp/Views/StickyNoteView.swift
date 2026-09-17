@@ -61,10 +61,6 @@ public struct StickyNoteView: View {
                     let posY = note.wrappedValue.frameY - 32
                     _ = store.createNote(at: CGPoint(x: posX, y: posY))
                 },
-                onColorChange: { newColor in
-                    note.wrappedValue.color = newColor
-                    store.requestSave()
-                },
                 onDelete: {
                     store.deleteNote(id: note.wrappedValue.id)
                 },
@@ -73,9 +69,6 @@ public struct StickyNoteView: View {
                         self.isUnlocked = false
                     }
                     store.setLocked(id: note.wrappedValue.id, locked: true)
-                },
-                onRemoveLock: {
-                    store.setLocked(id: note.wrappedValue.id, locked: false)
                 },
                 onTogglePrivate: {
                     store.togglePrivate(id: note.wrappedValue.id)
@@ -108,61 +101,6 @@ public struct StickyNoteView: View {
                 }
             }
         )
-        .contextMenu {
-            ForEach(NoteColor.allCases) { color in
-                Button {
-                    note.wrappedValue.color = color
-                    store.requestSave()
-                } label: {
-                    if note.wrappedValue.color == color {
-                        Label(color.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(color.displayName)
-                    }
-                }
-            }
-            
-            Divider()
-            
-            Button {
-                store.togglePin(id: note.wrappedValue.id)
-            } label: {
-                if note.wrappedValue.isPinned {
-                    Label("Always on Top: Pinned", systemImage: "pin.fill")
-                } else {
-                    Label("Pin to Top (Always on Top)", systemImage: "pin")
-                }
-            }
-            
-            Button {
-                store.togglePrivate(id: note.wrappedValue.id)
-            } label: {
-                if note.wrappedValue.isPrivate {
-                    Label("Privacy Shield: Enabled", systemImage: "shield.fill")
-                } else {
-                    Label("Privacy Shield: Disabled", systemImage: "shield")
-                }
-            }
-            
-            if let appName = note.wrappedValue.linkedAppName, !appName.isEmpty {
-                Button {
-                    showingAppPicker = true
-                } label: {
-                    Label("Change Linked App (\(appName))...", systemImage: "link")
-                }
-                Button {
-                    store.setLinkedApp(id: note.wrappedValue.id, bundleId: nil, appName: nil)
-                } label: {
-                    Label("Unlink from \(appName)", systemImage: "link.badge.plus")
-                }
-            } else {
-                Button {
-                    showingAppPicker = true
-                } label: {
-                    Label("Link to Application...", systemImage: "link")
-                }
-            }
-        }
     }
     
     @ViewBuilder
@@ -262,32 +200,5 @@ public struct StickyNoteView: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - AppKit VisualEffectView wrapper for macOS vibrancy
-public struct VisualEffectView: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
-    let blendingMode: NSVisualEffectView.BlendingMode
-    
-    public init(
-        material: NSVisualEffectView.Material = .popover,
-        blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
-    ) {
-        self.material = material
-        self.blendingMode = blendingMode
-    }
-    
-    public func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-    
-    public func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
     }
 }

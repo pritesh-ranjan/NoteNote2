@@ -9,7 +9,6 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
     private var panels: [UUID: StickyPanel] = [:]
     private var pendingHideTasks: [UUID: DispatchWorkItem] = [:]
     private var cancellables = Set<AnyCancellable>()
-    private var isUpdatingFrames = false
     
     private override init() {
         super.init()
@@ -248,6 +247,12 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         }
     }
     
+    public func updatePanelOpacityLive(id: UUID, opacity: Double) {
+        if let panel = panels[id] {
+            panel.alphaValue = CGFloat(max(0.2, min(1.0, opacity)))
+        }
+    }
+    
     public func focusNote(id: UUID) {
         if NotesStore.shared.areAllNotesHidden {
             NotesStore.shared.areAllNotesHidden = false
@@ -281,14 +286,12 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
     
     // MARK: - NSWindowDelegate
     public func windowDidMove(_ notification: Notification) {
-        guard !isUpdatingFrames,
-              let window = notification.object as? StickyPanel else { return }
+        guard let window = notification.object as? StickyPanel else { return }
         NotesStore.shared.updateFrame(id: window.noteId, rect: window.frame)
     }
     
     public func windowDidResize(_ notification: Notification) {
-        guard !isUpdatingFrames,
-              let window = notification.object as? StickyPanel else { return }
+        guard let window = notification.object as? StickyPanel else { return }
         NotesStore.shared.updateFrame(id: window.noteId, rect: window.frame)
     }
 }

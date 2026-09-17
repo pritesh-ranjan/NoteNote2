@@ -51,7 +51,7 @@ public struct DockTabHandleView: View {
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(note.color.borderColor, lineWidth: 1)
+                    .stroke(note.color.isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.08), lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 3)
             .contentShape(Rectangle())

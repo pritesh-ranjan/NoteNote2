@@ -13,6 +13,7 @@ public final class NotesStore: ObservableObject {
     public static let shared = NotesStore()
     
     @Published public var notes: [NoteModel] = []
+    @Published public var deletedNotes: [NoteModel] = []
     @Published public var settings: AppSettings = .default
     @Published public var activeAppBundleId: String? = nil
     @Published public var areAllNotesHidden: Bool = false
@@ -36,11 +37,19 @@ public final class NotesStore: ObservableObject {
         return newDir
     }
     
-    private var notesFileURL: URL {
+    public var notesFileURL: URL {
         storageDirectory.appendingPathComponent("notes.json")
     }
     
-    private var settingsFileURL: URL {
+    public var backupNotesFileURL: URL {
+        storageDirectory.appendingPathComponent("notes.backup.json")
+    }
+    
+    public var trashFileURL: URL {
+        storageDirectory.appendingPathComponent("trash.json")
+    }
+    
+    public var settingsFileURL: URL {
         storageDirectory.appendingPathComponent("settings.json")
     }
     
@@ -115,8 +124,51 @@ public final class NotesStore: ObservableObject {
     }
     
     public func deleteNote(id: UUID) {
-        notes.removeAll(where: { $0.id == id })
+        if let idx = notes.firstIndex(where: { $0.id == id }) {
+            var note = notes.remove(at: idx)
+            note.deletedAt = Date()
+            deletedNotes.insert(note, at: 0)
+            requestSave()
+            AppLogger.info("Moved note '\(note.displayTitle)' to trash")
+        }
+    }
+    
+    public func restoreNote(id: UUID) {
+        if let idx = deletedNotes.firstIndex(where: { $0.id == id }) {
+            var note = deletedNotes.remove(at: idx)
+            note.deletedAt = nil
+            note.updatedAt = Date()
+            notes.append(note)
+            requestSave()
+            AppLogger.info("Restored note '\(note.displayTitle)' from trash")
+            StickyWindowManager.shared.focusNote(id: note.id)
+        }
+    }
+    
+    public func permanentlyDeleteNote(id: UUID) {
+        deletedNotes.removeAll(where: { $0.id == id })
         requestSave()
+        AppLogger.info("Permanently deleted note with id: \(id)")
+    }
+    
+    public func emptyTrash() {
+        let count = deletedNotes.count
+        deletedNotes.removeAll()
+        requestSave()
+        AppLogger.info("Emptied trash (\(count) notes permanently removed)")
+    }
+    
+    public func restoreAllNotes() {
+        guard !deletedNotes.isEmpty else { return }
+        for var note in deletedNotes {
+            note.deletedAt = nil
+            note.updatedAt = Date()
+            notes.append(note)
+        }
+        deletedNotes.removeAll()
+        requestSave()
+        AppLogger.info("Restored all notes from trash")
+        StickyWindowManager.shared.bringAllToFront()
     }
     
     public func duplicateNote(id: UUID) -> NoteModel? {
@@ -272,6 +324,14 @@ public final class NotesStore: ObservableObject {
             let data = try JSONEncoder().encode(notes)
             try data.write(to: notesFileURL, options: .atomic)
             
+            // Redundant persistent backup: always kept in sync
+            if !notes.isEmpty {
+                try? data.write(to: backupNotesFileURL, options: .atomic)
+            }
+            
+            let trashData = try JSONEncoder().encode(deletedNotes)
+            try trashData.write(to: trashFileURL, options: .atomic)
+            
             let settingsData = try JSONEncoder().encode(settings)
             try settingsData.write(to: settingsFileURL, options: .atomic)
         } catch {
@@ -288,36 +348,66 @@ public final class NotesStore: ObservableObject {
     }
     
     private func loadNotes() {
+        // 1. Load deleted / trash notes
+        if fileManager.fileExists(atPath: trashFileURL.path),
+           let trashData = try? Data(contentsOf: trashFileURL),
+           let loadedTrash = try? JSONDecoder().decode([NoteModel].self, from: trashData) {
+            self.deletedNotes = loadedTrash
+        } else {
+            self.deletedNotes = []
+        }
+        
+        // 2. Load active notes from persistent file or backup
         if fileManager.fileExists(atPath: notesFileURL.path) {
-            guard let data = try? Data(contentsOf: notesFileURL),
-                  let loaded = try? JSONDecoder().decode([NoteModel].self, from: data) else {
-                // If the file exists but cannot be decoded, preserve a valid empty state
-                self.notes = []
+            if let data = try? Data(contentsOf: notesFileURL),
+               let loaded = try? JSONDecoder().decode([NoteModel].self, from: data) {
+                applyLoadedNotes(loaded)
                 return
             }
-            var updated = loaded
-            var modified = false
-            for i in updated.indices {
-                if updated[i].title.contains("Noticky") {
-                    updated[i].title = updated[i].title.replacingOccurrences(of: "Noticky", with: "NoteNote")
-                    modified = true
-                }
-                if updated[i].content.contains("Noticky") {
-                    updated[i].content = updated[i].content.replacingOccurrences(of: "Noticky", with: "NoteNote")
-                    modified = true
-                }
-                if updated[i].content.contains("noticky") {
-                    updated[i].content = updated[i].content.replacingOccurrences(of: "noticky", with: "notenote")
-                    modified = true
-                }
+            
+            // If primary file was corrupted, attempt recovery from backup file
+            if fileManager.fileExists(atPath: backupNotesFileURL.path),
+               let backupData = try? Data(contentsOf: backupNotesFileURL),
+               let backupLoaded = try? JSONDecoder().decode([NoteModel].self, from: backupData) {
+                AppLogger.warning("Recovered notes from backup file!")
+                applyLoadedNotes(backupLoaded)
+                return
             }
-            self.notes = updated
-            if modified {
-                persistData()
-            }
+            
+            AppLogger.error("Failed to decode notes.json or backup - keeping existing data safe")
+            self.notes = []
+        } else if fileManager.fileExists(atPath: backupNotesFileURL.path),
+                  let backupData = try? Data(contentsOf: backupNotesFileURL),
+                  let backupLoaded = try? JSONDecoder().decode([NoteModel].self, from: backupData) {
+            // Primary file missing but backup file exists (e.g. after reinstall)
+            AppLogger.info("Restoring active notes from backupNotesFileURL")
+            applyLoadedNotes(backupLoaded)
         } else {
             // First launch ever: populate welcome notes
             loadWelcomeNotes()
+        }
+    }
+    
+    private func applyLoadedNotes(_ loaded: [NoteModel]) {
+        var updated = loaded
+        var modified = false
+        for i in updated.indices {
+            if updated[i].title.contains("Noticky") {
+                updated[i].title = updated[i].title.replacingOccurrences(of: "Noticky", with: "NoteNote")
+                modified = true
+            }
+            if updated[i].content.contains("Noticky") {
+                updated[i].content = updated[i].content.replacingOccurrences(of: "Noticky", with: "NoteNote")
+                modified = true
+            }
+            if updated[i].content.contains("noticky") {
+                updated[i].content = updated[i].content.replacingOccurrences(of: "noticky", with: "notenote")
+                modified = true
+            }
+        }
+        self.notes = updated
+        if modified {
+            persistData()
         }
     }
     
@@ -390,5 +480,4 @@ public final class NotesStore: ObservableObject {
 
 extension Notification.Name {
     public static let toggleNoteLock = Notification.Name("NoteNote_toggleNoteLock")
-    public static let didLockNote = Notification.Name("NoteNote_didLockNote")
 }

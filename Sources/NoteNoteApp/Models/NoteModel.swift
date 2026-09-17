@@ -28,6 +28,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     public var createdAt: Date
     public var updatedAt: Date
     public var isArchived: Bool
+    public var deletedAt: Date?
     
     public init(
         id: UUID = UUID(),
@@ -50,7 +51,8 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         fontSize: Double = 13.0,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        isArchived: Bool = false
+        isArchived: Bool = false,
+        deletedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -73,6 +75,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isArchived = isArchived
+        self.deletedAt = deletedAt
     }
     
     enum CodingKeys: String, CodingKey {
@@ -81,7 +84,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         case isCollapsed, opacity
         case frameX, frameY, frameWidth, frameHeight
         case fontSize
-        case createdAt, updatedAt, isArchived
+        case createdAt, updatedAt, isArchived, deletedAt
     }
     
     public init(from decoder: Decoder) throws {
@@ -107,27 +110,19 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         self.isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
+        self.deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
     }
     
     public var displayTitle: String {
-        if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return title
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTitle.isEmpty {
+            return trimmedTitle
         }
         let lines = content.components(separatedBy: .newlines)
         for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty {
-                var clean = trimmed
-                if clean.hasPrefix("#") {
-                    clean = clean.replacingOccurrences(of: "^#+\\s*", with: "", options: .regularExpression)
-                } else if clean.hasPrefix("- [ ]") || clean.hasPrefix("- [x]") {
-                    clean = clean.replacingOccurrences(of: "^-\\s*\\[[ xX]\\]\\s*", with: "", options: .regularExpression)
-                } else if clean.hasPrefix("- ") || clean.hasPrefix("* ") || clean.hasPrefix("• ") {
-                    clean = clean.replacingOccurrences(of: "^[-*•]\\s*", with: "", options: .regularExpression)
-                }
-                if !clean.isEmpty {
-                    return String(clean.prefix(32))
-                }
+            let clean = line.cleanMarkdownStripped
+            if !clean.isEmpty {
+                return String(clean.prefix(32))
             }
         }
         return "Untitled Note"

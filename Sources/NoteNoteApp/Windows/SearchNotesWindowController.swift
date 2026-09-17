@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 @MainActor
-public final class QuickAddWindowController {
-    public static let shared = QuickAddWindowController()
+public final class SearchNotesWindowController {
+    public static let shared = SearchNotesWindowController()
     
     private var window: SpotlightHUDPanel?
     
@@ -15,12 +15,12 @@ public final class QuickAddWindowController {
             return
         }
         
-        let height: CGFloat = 205
+        let height: CGFloat = 380
         let frame = SpotlightHUDPanel.standardFrame(height: height)
         
         let panel = SpotlightHUDPanel(contentRect: frame)
         
-        let hostingView = NSHostingView(rootView: QuickAddView(onDismiss: { [weak panel] in
+        let hostingView = NSHostingView(rootView: SearchNotesView(onDismiss: { [weak panel] in
             panel?.dismiss()
         }))
         panel.contentView = hostingView

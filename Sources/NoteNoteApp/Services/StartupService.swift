@@ -15,35 +15,28 @@ public final class StartupService: ObservableObject {
     }
     
     public func refreshStatus() {
-        if #available(macOS 13.0, *) {
-            isLaunchAtLoginEnabled = (SMAppService.mainApp.status == .enabled)
-        } else {
-            isLaunchAtLoginEnabled = false
-        }
+        isLaunchAtLoginEnabled = (SMAppService.mainApp.status == .enabled)
     }
     
     @discardableResult
     public func setLaunchAtLogin(enabled: Bool) -> Bool {
-        if #available(macOS 13.0, *) {
-            do {
-                if enabled {
-                    if SMAppService.mainApp.status != .enabled {
-                        try SMAppService.mainApp.register()
-                    }
-                } else {
-                    if SMAppService.mainApp.status == .enabled {
-                        try SMAppService.mainApp.unregister()
-                    }
+        do {
+            if enabled {
+                if SMAppService.mainApp.status != .enabled {
+                    try SMAppService.mainApp.register()
                 }
-                refreshStatus()
-                return true
-            } catch {
-                print("Failed to update Launch at Login: \(error)")
-                refreshStatus()
-                return false
+            } else {
+                if SMAppService.mainApp.status == .enabled {
+                    try SMAppService.mainApp.unregister()
+                }
             }
+            refreshStatus()
+            return true
+        } catch {
+            AppLogger.error("Failed to update Launch at Login", error: error)
+            refreshStatus()
+            return false
         }
-        return false
     }
     
     public func performFirstLaunchSetupIfNeeded() {

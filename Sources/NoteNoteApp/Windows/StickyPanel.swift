@@ -64,22 +64,6 @@ public final class StickyPanel: NSPanel {
         return super.performKeyEquivalent(with: event)
     }
     
-    public override func keyDown(with event: NSEvent) {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags.contains(.command) && !flags.contains(.control) && !flags.contains(.option) {
-            let key = event.charactersIgnoringModifiers?.lowercased()
-            if key == "l" {
-                handleLockShortcut()
-                return
-            }
-            if key == "p" {
-                NotesStore.shared.togglePin(id: noteId)
-                return
-            }
-        }
-        super.keyDown(with: event)
-    }
-    
     public override func magnify(with event: NSEvent) {
         if let contentView = self.contentView, let textView = findStickyTextView(in: contentView) {
             textView.magnify(with: event)
@@ -118,13 +102,5 @@ public final class StickyPanel: NSPanel {
         
         // Ensure panel is always interactable (cannot be made unclickable)
         self.ignoresMouseEvents = false
-    }
-    
-    public func animateToFrame(_ newFrame: NSRect, duration: TimeInterval = 0.25) {
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = duration
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            self.animator().setFrame(newFrame, display: true)
-        }
     }
 }
