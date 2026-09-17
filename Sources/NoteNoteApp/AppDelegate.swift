@@ -20,15 +20,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start window manager and load initial stickies
         StickyWindowManager.shared.start()
         
-        // Start global keyboard shortcuts
-        HotkeyService.shared.onQuickAddTriggered = {
-            QuickAddWindowController.shared.show()
-        }
-        HotkeyService.shared.onToggleAllTriggered = {
-            NotesStore.shared.toggleAllNotesVisibility()
-        }
-        HotkeyService.shared.start()
-        
         // Start app watcher for app-aware notes
         AppWatcherService.shared.startObserving()
         
@@ -89,7 +80,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     public func applicationWillTerminate(_ notification: Notification) {
-        HotkeyService.shared.stop()
         NotesStore.shared.requestSave()
     }
     

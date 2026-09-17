@@ -294,24 +294,7 @@ public struct SettingsView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
-                    // 1. True System-Wide Carbon Global Hotkeys
-                    settingsSection(title: "System-Wide Global Hotkeys") {
-                        VStack(spacing: 0) {
-                            shortcutRow(
-                                label: "Quick Add Capture",
-                                keys: ["⌘", "⇧", "N"],
-                                desc: "Spotlight-style capture HUD from anywhere across macOS"
-                            )
-                            Divider().padding(.leading, 14)
-                            shortcutRow(
-                                label: "Show / Hide All Stickies",
-                                keys: ["⌘", "⇧", "H"],
-                                desc: "Instantly toggle all floating notes from any application"
-                            )
-                        }
-                    }
-                    
-                    // 2. Active Sticky Note Window Shortcuts
+                    // 1. Active Sticky Note Window Shortcuts
                     settingsSection(title: "Active Note Window Shortcuts") {
                         VStack(spacing: 0) {
                             shortcutRow(

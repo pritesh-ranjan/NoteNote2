@@ -58,10 +58,10 @@ public struct WelcomeView: View {
                 )
                 
                 featureRow(
-                    icon: "command",
+                    icon: "plus.square",
                     iconColor: .purple,
-                    title: "Global Quick Add (⌘⇧N)",
-                    description: "Press ⌘⇧N from any app on your Mac to summon the instant capture bar without interrupting your workflow."
+                    title: "Quick Add from Menu Bar",
+                    description: "Use the Quick Add option in the menu bar to summon the instant capture bar without interrupting your workflow."
                 )
                 
                 featureRow(

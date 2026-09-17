@@ -51,9 +51,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let quickAddItem = NSMenuItem(
             title: "Quick Add Sticky...",
             action: #selector(quickAddAction),
-            keyEquivalent: "N"
+            keyEquivalent: ""
         )
-        quickAddItem.keyEquivalentModifierMask = [.command, .shift]
         quickAddItem.target = self
         menu.addItem(quickAddItem)
         
@@ -100,9 +99,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         let toggleAllItem = NSMenuItem(
             title: toggleAllTitle,
             action: #selector(toggleAllAction),
-            keyEquivalent: "H"
+            keyEquivalent: ""
         )
-        toggleAllItem.keyEquivalentModifierMask = [.command, .shift]
         toggleAllItem.target = self
         menu.addItem(toggleAllItem)
         

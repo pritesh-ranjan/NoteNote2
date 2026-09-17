@@ -496,7 +496,7 @@ public final class NotesStore: ObservableObject {
             – [ ] Click the Shield icon 🛡️ to toggle screen sharing privacy
             – [ ] Click 🔗 to link this note to an app (Xcode, Safari, Figma)
             – [ ] Click ⭲ to dock this note to the screen edge
-            – [ ] Press ⌘⇧N anywhere for Quick Add capture!
+            – [ ] Use Quick Add from the menu bar for instant capture!
             """,
             color: .yellow,
             isPrivate: false,
