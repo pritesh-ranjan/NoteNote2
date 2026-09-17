@@ -37,7 +37,7 @@ fi
 # 4. Create DMG Image
 if [ -n "$CI" ]; then
     echo "⚡ Running in CI runner: creating compressed DMG directly from staging..."
-    hdiutil create -srcfolder "${STAGING_DIR}" -volname "${VOL_NAME}" -format UDZO -imagekey zlib-level=9 -o "${DMG_NAME}"
+    hdiutil create -ov -srcfolder "${STAGING_DIR}" -volname "${VOL_NAME}" -format UDZO -imagekey zlib-level=9 "${DMG_NAME}"
     rm -rf "${STAGING_DIR}"
 else
     # 4. Create initial read-write disk image
