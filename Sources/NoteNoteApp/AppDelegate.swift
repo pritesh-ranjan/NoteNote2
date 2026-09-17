@@ -35,8 +35,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Ensure stickies are front and visible on launch
         StickyWindowManager.shared.bringAllToFront()
         
-        // Perform first launch setup (configure launch at startup and show welcome)
-        StartupService.shared.performFirstLaunchSetupIfNeeded()
+        let isDemo = CommandLine.arguments.contains(where: { $0.hasPrefix("--demo-") })
+        if !isDemo {
+            // Perform first launch setup (configure launch at startup and show welcome)
+            StartupService.shared.performFirstLaunchSetupIfNeeded()
+        }
         
         if CommandLine.arguments.contains("--show-settings") {
             SettingsWindowController.shared.show()
@@ -58,6 +61,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if CommandLine.arguments.contains("--show-welcome") {
             WelcomeWindowController.shared.show()
+        }
+        
+        // Automated showcase demo runners
+        if CommandLine.arguments.contains("--demo-header") {
+            DemoRecordingService.shared.runHeaderDemo()
+        }
+        if CommandLine.arguments.contains("--demo-markdown") {
+            DemoRecordingService.shared.runMarkdownDemo()
+        }
+        if CommandLine.arguments.contains("--demo-ocr") {
+            DemoRecordingService.shared.runOCRDemo()
+        }
+        if CommandLine.arguments.contains("--demo-search") {
+            DemoRecordingService.shared.runSearchDemo()
         }
     }
     

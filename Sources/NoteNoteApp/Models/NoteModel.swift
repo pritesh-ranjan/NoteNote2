@@ -30,6 +30,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     public var isArchived: Bool
     public var deletedAt: Date?
     public var imageAttachments: [String]
+    public var isHeaderHovered: Bool = false
     
     public init(
         id: UUID = UUID(),

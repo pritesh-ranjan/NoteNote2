@@ -15,7 +15,7 @@ public struct NoteHeaderView: View {
     @State private var isNewNoteHovered = false
     
     private var showButtons: Bool {
-        isHovering
+        isHovering || note.isHeaderHovered
     }
     
     public init(

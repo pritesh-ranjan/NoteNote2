@@ -53,31 +53,31 @@ Lives in your **menu bar** with zero Dock clutter, stays floating over fullscree
 
 ---
 
-## Screenshots & Interactive Demos
+## Screenshots Gallery
 
 <table>
   <tr>
     <td width="50%" align="center">
       <b>Popping & Hiding Header Menu</b><br>
       <sub>Hover to reveal action buttons; right-click for 15 themes & opacity</sub><br><br>
-      <img src="docs/screenshots/header_hover.gif" alt="NoteNote2 Popping & Hiding Header Menu" width="380"/>
+      <img src="docs/screenshots/header_hover.png" alt="NoteNote2 Popping & Hiding Header Menu" width="380"/>
     </td>
     <td width="50%" align="center">
       <b>Interactive Checklists & Markdown</b><br>
       <sub>Clickable checkboxes, live progress counter & formatted code</sub><br><br>
-      <img src="docs/screenshots/markdown_support.gif" alt="NoteNote2 Interactive Checklists & Markdown" width="380"/>
+      <img src="docs/screenshots/note_checklist.png" alt="NoteNote2 Interactive Checklists & Markdown" width="380"/>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <b>Image Paste & On-Device Vision OCR</b><br>
+      <b>Image Attachments & Vision OCR</b><br>
       <sub>⌘V or drag images, extract text locally with zero cloud pings</sub><br><br>
-      <img src="docs/screenshots/image_paste_ocr.gif" alt="NoteNote2 Image Paste & Vision OCR" width="380"/>
+      <img src="docs/screenshots/image_paste_ocr.png" alt="NoteNote2 Image Attachments & Vision OCR" width="380"/>
     </td>
     <td width="50%" align="center">
       <b>Global Note Search (Spotlight HUD)</b><br>
       <sub>Instant search across notes, checklists & linked apps</sub><br><br>
-      <img src="docs/screenshots/spotlight_search.gif" alt="NoteNote2 Spotlight Search HUD" width="380"/>
+      <img src="docs/screenshots/spotlight_search.png" alt="NoteNote2 Spotlight Search HUD" width="380"/>
     </td>
   </tr>
   <tr>
