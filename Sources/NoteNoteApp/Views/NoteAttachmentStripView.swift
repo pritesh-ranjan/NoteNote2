@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 public struct NoteAttachmentStripView: View {
     let noteId: UUID
     let attachments: [String]
@@ -34,6 +35,7 @@ public struct NoteAttachmentStripView: View {
     }
 }
 
+@MainActor
 private struct AttachmentThumbnailView: View {
     let noteId: UUID
     let filename: String

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 
+@MainActor
 public struct NoteHeaderView: View {
     @Binding var note: NoteModel
     let onNewNote: () -> Void
