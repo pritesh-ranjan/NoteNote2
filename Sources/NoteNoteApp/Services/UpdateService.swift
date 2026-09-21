@@ -38,9 +38,9 @@ public final class UpdateService: ObservableObject {
     public func startPeriodicTimer() {
         periodicTimer?.invalidate()
         // Check every 2 hours to see if 24 hours have elapsed since the last check
-        periodicTimer = Timer.scheduledTimer(withTimeInterval: 7200, repeats: true) { [weak self] _ in
+        periodicTimer = Timer.scheduledTimer(withTimeInterval: 7200, repeats: true) { _ in
             Task { @MainActor in
-                self?.checkDailyUpdateIfNeeded()
+                UpdateService.shared.checkDailyUpdateIfNeeded()
             }
         }
     }
@@ -322,9 +322,9 @@ public final class UpdateService: ObservableObject {
     private func downloadFileWithProgress(from url: URL) async throws -> URL {
         return try await withCheckedThrowingContinuation { continuation in
             let delegate = DownloadDelegate(
-                onProgress: { [weak self] progress in
+                onProgress: { progress in
                     Task { @MainActor in
-                        self?.downloadProgress = progress
+                        UpdateService.shared.downloadProgress = progress
                     }
                 },
                 onFinish: { result in
