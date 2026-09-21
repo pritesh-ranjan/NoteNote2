@@ -167,7 +167,20 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         
         menu.addItem(NSMenuItem.separator())
         
-        // 9. Settings / Quit
+        // 9. Updates, Settings / Quit
+        let updateTitle = UpdateService.shared.hasNewUpdate ? "Check for Updates... (Update Available!)" : "Check for Updates..."
+        let updateItem = NSMenuItem(
+            title: updateTitle,
+            action: #selector(checkForUpdatesAction),
+            keyEquivalent: ""
+        )
+        if UpdateService.shared.hasNewUpdate {
+            let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+            updateItem.image = NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: "Update")?.withSymbolConfiguration(config)
+        }
+        updateItem.target = self
+        menu.addItem(updateItem)
+        
         let settingsItem = NSMenuItem(
             title: "Preferences...",
             action: #selector(openSettingsAction),
@@ -252,6 +265,14 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     
     @objc private func openWelcomeAction() {
         WelcomeWindowController.shared.show()
+    }
+    
+    @objc private func checkForUpdatesAction() {
+        if UpdateService.shared.hasNewUpdate, let release = UpdateService.shared.latestRelease {
+            UpdateWindowController.shared.show(release: release)
+        } else {
+            UpdateService.shared.checkForUpdates(interactive: true)
+        }
     }
     
     @objc private func quitAction() {

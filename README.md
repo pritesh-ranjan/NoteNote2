@@ -50,6 +50,7 @@ Lives in your **menu bar** with zero Dock clutter, stays floating over fullscree
 - 🔒 **Touch ID / Biometric Lock** — Lock sensitive stickies behind a frosted glass shield, unlocked via Touch ID or system passcode.
 - ⭲ **Edge Dock** — Dock notes to screen edges as compact tabs to keep your workspace tidy.
 - 💾 **100% Local & Reinstall-Safe** — Stored in `~/Library/Application Support/NoteNote/` with automated backup snapshots. Survives app reinstalls.
+- 🔄 **GitHub Releases Auto-Update** — Checks daily for new versions on GitHub, alerts when a higher release exists, and provides seamless one-click in-place update and relaunch with zero external dependencies.
 
 ---
 

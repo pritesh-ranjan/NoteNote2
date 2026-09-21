@@ -3,6 +3,7 @@ import SwiftUI
 public struct SettingsView: View {
     @StateObject private var store = NotesStore.shared
     @ObservedObject private var startupService = StartupService.shared
+    @ObservedObject private var updateService = UpdateService.shared
     @State private var selectedTab: Int
     private let scrollToGestures: Bool
     
@@ -239,10 +240,82 @@ public struct SettingsView: View {
                         }
                     }
                 }
+                
+                // Section 4: Software Updates
+                settingsSection(title: "Software Updates") {
+                    VStack(spacing: 0) {
+                        settingRow(
+                            title: "Check for Updates Daily",
+                            subtitle: "Automatically check GitHub Releases once a day for new versions"
+                        ) {
+                            Toggle("", isOn: $store.settings.autoCheckForUpdates)
+                                .toggleStyle(.switch)
+                                .tint(.blue)
+                                .labelsHidden()
+                                .onChange(of: store.settings.autoCheckForUpdates) { _, _ in
+                                    store.requestSave()
+                                }
+                        }
+                        
+                        Divider().padding(.leading, 14)
+                        
+                        settingRow(
+                            title: "Automatic Installation",
+                            subtitle: "Download and update automatically when a higher version exists"
+                        ) {
+                            Toggle("", isOn: $store.settings.autoInstallUpdates)
+                                .toggleStyle(.switch)
+                                .tint(.blue)
+                                .labelsHidden()
+                                .onChange(of: store.settings.autoInstallUpdates) { _, _ in
+                                    store.requestSave()
+                                }
+                        }
+                        
+                        Divider().padding(.leading, 14)
+                        
+                        settingRow(
+                            title: "GitHub Releases",
+                            subtitle: lastCheckedFormatted
+                        ) {
+                            Button {
+                                updateService.checkForUpdates(interactive: true)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    if updateService.isChecking {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                            .font(.system(size: 11))
+                                    }
+                                    Text(updateService.isChecking ? "Checking..." : "Check Now")
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color(white: 0.25))
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(updateService.isChecking)
+                        }
+                    }
+                }
             }
             .padding(.horizontal, 22)
             .padding(.bottom, 16)
         }
+    }
+    
+    private var lastCheckedFormatted: String {
+        guard let date = updateService.lastCheckDate ?? store.settings.lastUpdateCheckDate else {
+            return "Never checked"
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return "Last checked " + formatter.localizedString(for: date, relativeTo: Date())
     }
     
     private func settingsSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -467,7 +540,7 @@ public struct SettingsView: View {
                 Text("NoteNote")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.1.0") (macOS Native)")
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.2.0") (macOS Native)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Color(white: 0.6))
             }
@@ -477,6 +550,38 @@ public struct SettingsView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(Color(white: 0.7))
                 .frame(maxWidth: 340)
+            
+            VStack(spacing: 8) {
+                Button {
+                    updateService.checkForUpdates(interactive: true)
+                } label: {
+                    HStack(spacing: 6) {
+                        if updateService.isChecking {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11))
+                        }
+                        Text(updateService.isChecking ? "Checking for Updates..." : "Check for Updates")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color(white: 0.25))
+                    .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                .disabled(updateService.isChecking)
+                
+                if !updateService.statusMessage.isEmpty {
+                    Text(updateService.statusMessage)
+                        .font(.system(size: 11))
+                        .foregroundColor(updateService.hasNewUpdate ? .green : Color(white: 0.5))
+                }
+            }
+            .padding(.top, 4)
             
             Spacer()
             

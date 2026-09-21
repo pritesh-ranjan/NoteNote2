@@ -30,6 +30,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if !isDemo {
             // Perform first launch setup (configure launch at startup and show welcome)
             StartupService.shared.performFirstLaunchSetupIfNeeded()
+            
+            // Start background updater cadence and check daily update if needed
+            UpdateService.shared.startPeriodicTimer()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                UpdateService.shared.checkDailyUpdateIfNeeded()
+            }
         }
         
         if CommandLine.arguments.contains("--show-settings") {
@@ -52,6 +58,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if CommandLine.arguments.contains("--show-welcome") {
             WelcomeWindowController.shared.show()
+        }
+        if CommandLine.arguments.contains("--check-updates") {
+            UpdateService.shared.checkForUpdates(interactive: true)
+        }
+        if CommandLine.arguments.contains("--demo-update") {
+            let demoRelease = GitHubRelease(
+                tag_name: "v2.2.0",
+                name: "NoteNote 2.2.0 — Auto-Update & Polish",
+                body: "### What's New in v2.2.0\n• Native GitHub Releases auto-updater\n• Daily update cadence with silent background checks\n• One-click update & relaunch with zero external dependencies\n• UI and animation polish",
+                html_url: "https://github.com/pritesh-ranjan/NoteNote2/releases",
+                assets: [
+                    GitHubReleaseAsset(
+                        name: "NoteNote.app.zip",
+                        browser_download_url: "https://github.com/pritesh-ranjan/NoteNote2/releases/download/v2.1.0/NoteNote.app.zip",
+                        size: 940000
+                    )
+                ]
+            )
+            UpdateWindowController.shared.show(release: demoRelease)
         }
         
         // Automated showcase demo runners
