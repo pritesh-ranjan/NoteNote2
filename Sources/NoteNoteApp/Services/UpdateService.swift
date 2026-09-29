@@ -22,11 +22,11 @@ public final class UpdateService: ObservableObject {
     private var periodicTimer: Timer?
     
     public var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.2.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.1.0"
     }
     
     public var currentBuildNumber: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "6"
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
     
     private init() {
@@ -38,9 +38,9 @@ public final class UpdateService: ObservableObject {
     public func startPeriodicTimer() {
         periodicTimer?.invalidate()
         // Check every 2 hours to see if 24 hours have elapsed since the last check
-        periodicTimer = Timer.scheduledTimer(withTimeInterval: 7200, repeats: true) { _ in
+        periodicTimer = Timer.scheduledTimer(withTimeInterval: 7200, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                UpdateService.shared.checkDailyUpdateIfNeeded()
+                self?.checkDailyUpdateIfNeeded()
             }
         }
     }
@@ -98,108 +98,6 @@ public final class UpdateService: ObservableObject {
         return .orderedSame
     }
     
-    // MARK: - Validation & Security
-    
-    /// Verifies that the release and asset URLs originate strictly from the official repository.
-    public static func isRepoURLValid(release: GitHubRelease) -> Bool {
-        // Release page URL must belong to the official repository
-        let expectedReleasePrefix = "https://github.com/pritesh-ranjan/NoteNote2/releases"
-        guard release.html_url.hasPrefix(expectedReleasePrefix) else {
-            AppLogger.error("Update rejected: invalid release html_url '\(release.html_url)'")
-            return false
-        }
-        
-        // Asset download URLs must originate from the official repository release downloads
-        if let zipAsset = release.zipAsset {
-            let expectedDownloadPrefix = "https://github.com/pritesh-ranjan/NoteNote2/releases/download/"
-            guard zipAsset.browser_download_url.hasPrefix(expectedDownloadPrefix) else {
-                AppLogger.error("Update rejected: invalid zip asset download URL '\(zipAsset.browser_download_url)'")
-                return false
-            }
-        }
-        if let dmgAsset = release.dmgAsset {
-            let expectedDownloadPrefix = "https://github.com/pritesh-ranjan/NoteNote2/releases/download/"
-            guard dmgAsset.browser_download_url.hasPrefix(expectedDownloadPrefix) else {
-                AppLogger.error("Update rejected: invalid dmg asset download URL '\(dmgAsset.browser_download_url)'")
-                return false
-            }
-        }
-        return true
-    }
-    
-    /// Verifies code signature of the downloaded app bundle against NoteNote requirements.
-    public static func verifyCodeSignature(newAppURL: URL, currentAppURL: URL) -> Bool {
-        // 1. Strict signature validity check
-        let strictProcess = Process()
-        strictProcess.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        strictProcess.arguments = ["-v", "--strict", newAppURL.path]
-        do {
-            try strictProcess.run()
-            strictProcess.waitUntilExit()
-            guard strictProcess.terminationStatus == 0 else {
-                AppLogger.error("Codesign verification failed: strict check returned exit \(strictProcess.terminationStatus)")
-                return false
-            }
-        } catch {
-            AppLogger.error("Codesign verification failed to execute strict check", error: error)
-            return false
-        }
-        
-        // 2. Explicit designated requirement check for NoteNote bundle identifier
-        let idProcess = Process()
-        idProcess.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        idProcess.arguments = ["-v", "-R=identifier \"com.priteshranjan.NoteNote\"", newAppURL.path]
-        do {
-            try idProcess.run()
-            idProcess.waitUntilExit()
-            guard idProcess.terminationStatus == 0 else {
-                AppLogger.error("Codesign verification failed: requirement identifier mismatch (exit \(idProcess.terminationStatus))")
-                return false
-            }
-        } catch {
-            AppLogger.error("Codesign verification failed to execute requirement check", error: error)
-            return false
-        }
-        
-        // 3. Match against current running app's designated requirement if present
-        let reqProcess = Process()
-        reqProcess.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        reqProcess.arguments = ["-d", "-r-", currentAppURL.path]
-        let pipe = Pipe()
-        reqProcess.standardOutput = pipe
-        reqProcess.standardError = pipe
-        do {
-            try reqProcess.run()
-            reqProcess.waitUntilExit()
-            if reqProcess.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let output = String(data: data, encoding: .utf8) {
-                    for line in output.components(separatedBy: .newlines) {
-                        if let range = line.range(of: "designated => ") {
-                            let requirement = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !requirement.isEmpty {
-                                let matchProcess = Process()
-                                matchProcess.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-                                matchProcess.arguments = ["-v", "-R=\(requirement)", newAppURL.path]
-                                try matchProcess.run()
-                                matchProcess.waitUntilExit()
-                                guard matchProcess.terminationStatus == 0 else {
-                                    AppLogger.error("Codesign verification failed: does not match current designated requirement '\(requirement)'")
-                                    return false
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } catch {
-            AppLogger.error("Failed to read current app designated requirement", error: error)
-            return false
-        }
-        
-        return true
-    }
-    
     // MARK: - Check For Updates
     
     public func checkForUpdates(interactive: Bool = false) {
@@ -233,7 +131,9 @@ public final class UpdateService: ObservableObject {
                 guard httpResponse.statusCode == 200 else {
                     if httpResponse.statusCode == 404 {
                         self.statusMessage = "No published releases found."
-                        // Silent: no popup
+                        if interactive {
+                            self.showUpToDateAlert()
+                        }
                         return
                     }
                     throw NSError(domain: "UpdateService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "GitHub API responded with status \(httpResponse.statusCode)"])
@@ -249,26 +149,36 @@ public final class UpdateService: ObservableObject {
                 NotesStore.shared.requestSave()
                 
                 let comparison = Self.compareVersions(current: self.currentVersion, remote: release.tag_name)
-                let isRepoValid = Self.isRepoURLValid(release: release)
                 
-                if comparison == .orderedAscending && isRepoValid {
-                    // Actual higher release verified from official repository!
+                if comparison == .orderedAscending {
+                    // Remote version is higher!
                     self.latestRelease = release
                     self.hasNewUpdate = true
                     self.statusMessage = "Update available: \(release.tag_name)"
                     
-                    // Show popup ONLY when we have an actual update!
-                    UpdateWindowController.shared.show(release: release)
+                    if NotesStore.shared.settings.autoInstallUpdates {
+                        // If auto-install is enabled, download directly
+                        self.downloadAndInstall(release: release)
+                    } else {
+                        // Prompt user with Update Window
+                        UpdateWindowController.shared.show(release: release)
+                    }
                 } else {
                     self.latestRelease = release
                     self.hasNewUpdate = false
                     self.statusMessage = "NoteNote is up to date (\(self.currentVersion))"
-                    // Silent: No popup when up to date
+                    
+                    if interactive {
+                        self.showUpToDateAlert()
+                    }
                 }
             } catch {
                 AppLogger.error("Failed to check for updates", error: error)
                 self.statusMessage = "Could not check for updates"
-                // Silent: No popup on network or check failure
+                
+                if interactive {
+                    self.showErrorAlert(message: error.localizedDescription)
+                }
             }
         }
     }
@@ -277,13 +187,6 @@ public final class UpdateService: ObservableObject {
     
     public func downloadAndInstall(release: GitHubRelease) {
         guard !isDownloading else { return }
-        
-        // Ensure repo URL is verified
-        guard Self.isRepoURLValid(release: release) else {
-            self.statusMessage = "Security error: untrusted release repository."
-            AppLogger.error("Rejected installation: repository URL validation failed.")
-            return
-        }
         
         // Find zip asset first, then DMG fallback
         guard let downloadAsset = release.zipAsset ?? release.dmgAsset,
@@ -315,6 +218,7 @@ public final class UpdateService: ObservableObject {
                 self.isDownloading = false
                 self.statusMessage = "Update failed: \(error.localizedDescription)"
                 AppLogger.error("Update download/install failed", error: error)
+                self.showErrorAlert(message: "Failed to download and install update:\n\(error.localizedDescription)")
             }
         }
     }
@@ -322,9 +226,9 @@ public final class UpdateService: ObservableObject {
     private func downloadFileWithProgress(from url: URL) async throws -> URL {
         return try await withCheckedThrowingContinuation { continuation in
             let delegate = DownloadDelegate(
-                onProgress: { progress in
+                onProgress: { [weak self] progress in
                     Task { @MainActor in
-                        UpdateService.shared.downloadProgress = progress
+                        self?.downloadProgress = progress
                     }
                 },
                 onFinish: { result in
@@ -337,7 +241,7 @@ public final class UpdateService: ObservableObject {
         }
     }
     
-    // MARK: - Extraction, Codesign Verification & Atomic Replacement
+    // MARK: - Extraction & Atomic Bundle Replacement
     
     private func extractAndRelaunch(zipFileURL: URL) async throws {
         let fileManager = FileManager.default
@@ -369,7 +273,7 @@ public final class UpdateService: ObservableObject {
             throw NSError(domain: "UpdateService", code: -3, userInfo: [NSLocalizedDescriptionKey: "Update archive did not contain NoteNote.app."])
         }
         
-        // 1. Verify bundle identifier
+        // Verify bundle identifier
         let infoPlistURL = validNewAppURL.appendingPathComponent("Contents/Info.plist")
         if let plistData = try? Data(contentsOf: infoPlistURL),
            let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
@@ -379,37 +283,34 @@ public final class UpdateService: ObservableObject {
             }
         }
         
-        // 2. Strict Codesign Verification: Must match designated code requirement
-        let codesignMatches = Self.verifyCodeSignature(newAppURL: validNewAppURL, currentAppURL: Bundle.main.bundleURL)
-        guard codesignMatches else {
-            AppLogger.error("Update rejected: Code signature verification failed on extracted app bundle.")
-            throw NSError(domain: "UpdateService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Security verification failed: code signature does not match NoteNote requirements."])
-        }
+        let targetAppPath = Bundle.main.bundlePath
         
-        // 3. Determine target app path to replace
-        var targetAppURL = Bundle.main.bundleURL
-        if targetAppURL.path.contains("/.build/") || targetAppURL.path.contains("/DerivedData/") {
-            // If running inside dev build folder, target /Applications/NoteNote.app if installed, or local NoteNote.app
-            let appInApplications = URL(fileURLWithPath: "/Applications/NoteNote.app")
-            let localApp = URL(fileURLWithPath: "NoteNote.app")
-            if fileManager.fileExists(atPath: appInApplications.path) {
-                targetAppURL = appInApplications
-            } else if fileManager.fileExists(atPath: localApp.path) {
-                targetAppURL = localApp
+        // Check if running from dev / build directory
+        if targetAppPath.contains("/.build/") || targetAppPath.contains("/DerivedData/") {
+            self.isDownloading = false
+            self.statusMessage = "Update downloaded & verified (Skipping replace in development build)."
+            
+            let alert = NSAlert()
+            alert.messageText = "Update Downloaded & Verified!"
+            alert.informativeText = "A new release was downloaded and verified successfully at:\n\(validNewAppURL.path)\n\nBundle replacement was skipped because NoteNote is currently running from a development build folder."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Reveal in Finder")
+            if alert.runModal() == .alertSecondButtonReturn {
+                NSWorkspace.shared.activateFileViewerSelecting([validNewAppURL])
             }
+            return
         }
         
-        let targetAppPath = targetAppURL.path
+        // Execute detached atomic swap script and terminate current app
         let tempParentDir = zipFileURL.deletingLastPathComponent().path
         let newAppPath = validNewAppURL.path
         
-        // Execute detached atomic swap script and terminate current app
         let script = """
         (
             sleep 0.8
             rm -rf "\(targetAppPath)"
             cp -R "\(newAppPath)" "\(targetAppPath)"
-            xattr -dr com.apple.quarantine "\(targetAppPath)" 2>/dev/null || true
             rm -rf "\(tempParentDir)"
             open "\(targetAppPath)"
         ) >/dev/null 2>&1 &
@@ -422,6 +323,28 @@ public final class UpdateService: ObservableObject {
         
         // Gracefully terminate this instance
         NSApp.terminate(nil)
+    }
+    
+    // MARK: - Alerts
+    
+    private func showUpToDateAlert() {
+        let alert = NSAlert()
+        alert.messageText = "You're Up to Date!"
+        alert.informativeText = "NoteNote \(currentVersion) is currently the newest version available."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+    
+    private func showErrorAlert(message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Check for Updates"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 }
 

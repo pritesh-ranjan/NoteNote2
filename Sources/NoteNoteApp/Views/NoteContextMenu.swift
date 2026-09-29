@@ -18,6 +18,21 @@ public final class NoteContextMenu {
         item.view = customView
         menu.addItem(item)
         
+        // Separator before destructive action
+        menu.addItem(NSMenuItem.separator())
+        
+        // Delete Note (moved from header button to context menu)
+        let handler = NoteMenuActionHandler.shared
+        let deleteItem = NSMenuItem(
+            title: "Delete Note",
+            action: #selector(handler.deleteNoteAction(_:)),
+            keyEquivalent: ""
+        )
+        deleteItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+        deleteItem.representedObject = noteId
+        deleteItem.target = handler
+        menu.addItem(deleteItem)
+        
         return menu
     }
 }
@@ -691,6 +706,11 @@ final class NoteMenuActionHandler: NSObject {
         guard let noteId = sender.representedObject as? UUID,
               let note = NotesStore.shared.notes.first(where: { $0.id == noteId }) else { return }
         NoteExportService.shared.exportToPlainText(note: note, window: NSApp.keyWindow)
+    }
+    
+    @objc func deleteNoteAction(_ sender: NSMenuItem) {
+        guard let noteId = sender.representedObject as? UUID else { return }
+        NotesStore.shared.deleteNote(id: noteId)
     }
     
     @objc func captureScreenAction(_ sender: NSMenuItem) {

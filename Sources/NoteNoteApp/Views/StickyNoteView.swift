@@ -82,8 +82,8 @@ public struct StickyNoteView: View {
                     let posY = note.wrappedValue.frameY - 32
                     _ = store.createNote(at: CGPoint(x: posX, y: posY))
                 },
-                onDelete: {
-                    store.deleteNote(id: note.wrappedValue.id)
+                onHide: {
+                    StickyWindowManager.shared.hideNote(id: note.wrappedValue.id)
                 },
                 onLockNow: {
                     withAnimation(.easeInOut(duration: 0.2)) {

@@ -5,7 +5,7 @@ import AppKit
 public struct NoteHeaderView: View {
     @Binding var note: NoteModel
     let onNewNote: () -> Void
-    let onDelete: () -> Void
+    let onHide: () -> Void
     let onLockNow: () -> Void
     let onTogglePrivate: () -> Void
     let onTogglePin: () -> Void
@@ -22,7 +22,7 @@ public struct NoteHeaderView: View {
     public init(
         note: Binding<NoteModel>,
         onNewNote: @escaping () -> Void,
-        onDelete: @escaping () -> Void,
+        onHide: @escaping () -> Void,
         onLockNow: @escaping () -> Void,
         onTogglePrivate: @escaping () -> Void,
         onTogglePin: @escaping () -> Void,
@@ -30,7 +30,7 @@ public struct NoteHeaderView: View {
     ) {
         self._note = note
         self.onNewNote = onNewNote
-        self.onDelete = onDelete
+        self.onHide = onHide
         self.onLockNow = onLockNow
         self.onTogglePrivate = onTogglePrivate
         self.onTogglePin = onTogglePin
@@ -42,8 +42,8 @@ public struct NoteHeaderView: View {
             HStack(spacing: 6) {
                 // Left action buttons (Close, New Note)
                 HStack(spacing: 7) {
-                    // 1. Delete / Close Button
-                    Button(action: onDelete) {
+                    // 1. Hide Button (closes the note window without deleting)
+                    Button(action: onHide) {
                         Circle()
                             .fill(isCloseHovered ? Color.red : Color.red.opacity(0.85))
                             .frame(width: 12, height: 12)
@@ -59,7 +59,7 @@ public struct NoteHeaderView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Delete Sticky Note")
+                    .help("Hide Sticky Note")
                     .onHover { isCloseHovered = $0 }
                     
                     // 2. New Note (+) Button

@@ -237,6 +237,12 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         }
     }
     
+    public func hideNote(id: UUID) {
+        if let panel = panels[id] {
+            panel.orderOut(nil)
+        }
+    }
+    
     public func updatePanelOpacityLive(id: UUID, opacity: Double) {
         if let panel = panels[id] {
             panel.alphaValue = CGFloat(max(0.2, min(1.0, opacity)))
