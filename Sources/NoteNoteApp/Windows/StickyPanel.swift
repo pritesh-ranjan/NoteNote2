@@ -18,7 +18,7 @@ public final class StickyPanel: NSPanel {
         self.isFloatingPanel = isPinned
         self.hidesOnDeactivate = false
         self.level = isPinned ? .floating : .normal
-        self.collectionBehavior = isPinned ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.canJoinAllSpaces]
+        self.collectionBehavior = isPinned ? [.canJoinAllSpaces, .fullScreenAuxiliary] : []
         self.isOpaque = false
         self.backgroundColor = .clear
         self.hasShadow = false
@@ -296,7 +296,7 @@ public final class StickyPanel: NSPanel {
             self.isFloatingPanel = shouldFloat
         }
         self.hidesOnDeactivate = false
-        self.collectionBehavior = shouldFloat ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.canJoinAllSpaces]
+        self.collectionBehavior = shouldFloat ? [.canJoinAllSpaces, .fullScreenAuxiliary] : []
         
         // Hide From Screen Sharing / Recording (Zoom, Teams, Screenshots)
         let targetSharing: NSWindow.SharingType = isPrivate ? .none : .readOnly
