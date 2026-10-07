@@ -249,6 +249,10 @@ public final class StickyWindowManager: NSObject, NSWindowDelegate {
         }
     }
     
+    public func panel(for id: UUID) -> StickyPanel? {
+        return panels[id]
+    }
+    
     public func focusNote(id: UUID) {
         if NotesStore.shared.areAllNotesHidden {
             NotesStore.shared.areAllNotesHidden = false

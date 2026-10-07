@@ -9,7 +9,8 @@ public final class VisionOCRService: @unchecked Sendable {
     /// Recognizes text from an NSImage using Apple's Vision framework.
     /// Runs asynchronously on a background queue and invokes completion on the main thread.
     public func recognizeText(from image: NSImage, completion: @escaping (String?) -> Void) {
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            ?? (image.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0)?.cgImage }) else {
             DispatchQueue.main.async { completion(nil) }
             return
         }

@@ -74,7 +74,8 @@ public final class ScreenCaptureService {
                 guard FileManager.default.fileExists(atPath: tempURL.path),
                       let fileAttributes = try? FileManager.default.attributesOfItem(atPath: tempURL.path),
                       let fileSize = fileAttributes[.size] as? Int64, fileSize > 0,
-                      let capturedImage = NSImage(contentsOf: tempURL), capturedImage.isValid else {
+                      let fileData = try? Data(contentsOf: tempURL),
+                      let capturedImage = NSImage(data: fileData), capturedImage.isValid else {
                     AppLogger.info("Interactive screen capture cancelled or empty (termination status: \(proc.terminationStatus))")
                     return
                 }
@@ -90,9 +91,34 @@ public final class ScreenCaptureService {
                     content: ""
                 )
                 
-                NotesStore.shared.addImageAttachment(to: newNote.id, image: capturedImage)
                 StickyWindowManager.shared.focusNote(id: newNote.id)
-                AppLogger.info("Created new sticky note \(newNote.id) from screen capture and brought to focus")
+                AppLogger.info("Created new sticky note \(newNote.id) from screen capture, presenting image action menu")
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    let panel = StickyWindowManager.shared.panel(for: newNote.id)
+                        ?? NSApp.windows.first(where: { ($0 as? StickyPanel)?.noteId == newNote.id }) as? StickyPanel
+                    guard let activePanel = panel, let contentView = activePanel.contentView else {
+                        NotesStore.shared.addImageAttachment(to: newNote.id, image: capturedImage)
+                        return
+                    }
+                    
+                    let location = NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
+                    NoteBodyContextMenu.showImageActionMenu(
+                        for: capturedImage,
+                        noteId: newNote.id,
+                        at: location,
+                        in: contentView,
+                        headerTitle: "Screen Capture"
+                    ) {
+                        // User cancelled menu: clean up empty placeholder note
+                        if let note = NotesStore.shared.notes.first(where: { $0.id == newNote.id }),
+                           note.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                           note.imageAttachments.isEmpty {
+                            NotesStore.shared.deleteNote(id: newNote.id)
+                            AppLogger.info("Cancelled screen capture sticky note \(newNote.id)")
+                        }
+                    }
+                }
             }
         }
         

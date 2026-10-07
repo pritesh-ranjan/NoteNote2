@@ -432,12 +432,15 @@ public final class NoteBodyContextMenu {
     
     /// Displays a native macOS popup menu for an image (paste or drag-and-drop),
     /// identical in styling, vibrancy, and behavior to the right-click context menu.
+    @discardableResult
     public static func showImageActionMenu(
         for image: NSImage,
         noteId: UUID,
         at location: NSPoint,
-        in view: NSView
-    ) {
+        in view: NSView,
+        headerTitle: String = "Image Detected",
+        onCancel: (() -> Void)? = nil
+    ) -> Bool {
         let menu = NSMenu(title: "Image Options")
         menu.autoenablesItems = false
         let handler = NoteMenuActionHandler.shared
@@ -448,7 +451,7 @@ public final class NoteBodyContextMenu {
             image.draw(in: rect)
             return true
         }
-        let headerItem = NSMenuItem(title: "Image Detected", action: nil, keyEquivalent: "")
+        let headerItem = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
         headerItem.image = thumb
         menu.addItem(headerItem)
@@ -478,7 +481,11 @@ public final class NoteBodyContextMenu {
         pasteTextItem.target = handler
         menu.addItem(pasteTextItem)
         
-        menu.popUp(positioning: nil, at: location, in: view)
+        let success = menu.popUp(positioning: nil, at: location, in: view)
+        if !success {
+            onCancel?()
+        }
+        return success
     }
     
     public static func makeMenu(for noteId: UUID, targetTextView: NSTextView? = nil) -> NSMenu {
@@ -663,6 +670,12 @@ final class NoteMenuActionHandler: NSObject {
         VisionOCRService.shared.recognizeText(from: image) { recognizedText in
             guard let text = recognizedText, !text.isEmpty else {
                 NSSound.beep()
+                // If note has no content and no attachments (e.g. freshly captured screen note), fallback to attaching image
+                if let note = NotesStore.shared.notes.first(where: { $0.id == noteId }),
+                   note.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   note.imageAttachments.isEmpty {
+                    NotesStore.shared.addImageAttachment(to: noteId, image: image)
+                }
                 return
             }
             
@@ -676,6 +689,7 @@ final class NoteMenuActionHandler: NSObject {
                     tv.didChangeText()
                     tv.setSelectedRange(NSRange(location: sel.location + (text as NSString).length, length: 0))
                     tv.renderMarkdown()
+                    tv.notifyTextDidChange()
                     return
                 }
             }
