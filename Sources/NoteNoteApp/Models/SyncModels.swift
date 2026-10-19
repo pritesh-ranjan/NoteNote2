@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // MARK: - Paired Device Model
 public struct PairedDevice: Identifiable, Codable, Equatable, Sendable {
@@ -67,6 +68,141 @@ public struct SyncNoteDTO: Identifiable, Codable, Equatable, Sendable {
         self.createdAt = note.createdAt
         self.updatedAt = note.updatedAt
         self.deletedAt = note.deletedAt
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title, name, heading, header
+        case content, body, text, description, note
+        case color
+        case isPinned, pinned
+        case isLocked, locked
+        case createdAt, created_at
+        case updatedAt, updated_at
+        case deletedAt, deleted_at
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // 1. ID decoding (support UUID string, integer, or arbitrary string)
+        if let uuid = try? container.decode(UUID.self, forKey: .id) {
+            self.id = uuid
+        } else if let idStr = try? container.decode(String.self, forKey: .id) {
+            if let uuid = UUID(uuidString: idStr) {
+                self.id = uuid
+            } else {
+                self.id = SyncNoteDTO.deterministicUUID(from: idStr)
+            }
+        } else if let idInt = try? container.decode(Int.self, forKey: .id) {
+            self.id = SyncNoteDTO.deterministicUUID(from: "note-\(idInt)")
+        } else {
+            self.id = UUID()
+        }
+        
+        // 2. Title decoding (tolerant to alternative field names and nulls)
+        self.title = (try? container.decodeIfPresent(String.self, forKey: .title))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .name))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .heading))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .header))
+            ?? ""
+            
+        // 3. Content decoding
+        self.content = (try? container.decodeIfPresent(String.self, forKey: .content))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .body))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .text))
+            ?? (try? container.decodeIfPresent(String.self, forKey: .note))
+            ?? ""
+            
+        // 4. Color decoding
+        self.color = (try? container.decodeIfPresent(String.self, forKey: .color)) ?? "yellow"
+        
+        // 5. isPinned decoding (bool, int, or missing)
+        if let pinBool = try? container.decodeIfPresent(Bool.self, forKey: .isPinned) {
+            self.isPinned = pinBool
+        } else if let pinBool = try? container.decodeIfPresent(Bool.self, forKey: .pinned) {
+            self.isPinned = pinBool
+        } else if let pinInt = try? container.decodeIfPresent(Int.self, forKey: .isPinned) {
+            self.isPinned = (pinInt != 0)
+        } else {
+            self.isPinned = false
+        }
+        
+        // 6. isLocked decoding (bool, int, or missing)
+        if let lockBool = try? container.decodeIfPresent(Bool.self, forKey: .isLocked) {
+            self.isLocked = lockBool
+        } else if let lockBool = try? container.decodeIfPresent(Bool.self, forKey: .locked) {
+            self.isLocked = lockBool
+        } else if let lockInt = try? container.decodeIfPresent(Int.self, forKey: .isLocked) {
+            self.isLocked = (lockInt != 0)
+        } else {
+            self.isLocked = false
+        }
+        
+        // 7. createdAt decoding (flexible date)
+        self.createdAt = SyncNoteDTO.decodeFlexibleDate(from: container, keys: [.createdAt, .created_at]) ?? Date()
+        
+        // 8. updatedAt decoding (flexible date)
+        self.updatedAt = SyncNoteDTO.decodeFlexibleDate(from: container, keys: [.updatedAt, .updated_at]) ?? Date()
+        
+        // 9. deletedAt decoding (flexible date)
+        self.deletedAt = SyncNoteDTO.decodeFlexibleDate(from: container, keys: [.deletedAt, .deleted_at])
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(content, forKey: .content)
+        try container.encode(color, forKey: .color)
+        try container.encode(isPinned, forKey: .isPinned)
+        try container.encode(isLocked, forKey: .isLocked)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
+    }
+    
+    private static func decodeFlexibleDate(from container: KeyedDecodingContainer<CodingKeys>, keys: [CodingKeys]) -> Date? {
+        for key in keys {
+            if let dateStr = try? container.decodeIfPresent(String.self, forKey: key) {
+                if let d = parseDateString(dateStr) { return d }
+            }
+            if let num = try? container.decodeIfPresent(Double.self, forKey: key) {
+                if num > 100_000_000_000 { return Date(timeIntervalSince1970: num / 1000.0) } // ms
+                if num > 100_000_000 { return Date(timeIntervalSince1970: num) } // sec
+                return Date(timeIntervalSinceReferenceDate: num)
+            }
+        }
+        return nil
+    }
+    
+    public static func parseDateString(_ str: String) -> Date? {
+        let iso = ISO8601DateFormatter()
+        if let d = iso.date(from: str) { return d }
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = iso.date(from: str) { return d }
+        
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        for fmt in ["yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"] {
+            df.dateFormat = fmt
+            if let d = df.date(from: str) { return d }
+        }
+        return nil
+    }
+    
+    public static func deterministicUUID(from string: String) -> UUID {
+        let digest = Insecure.MD5.hash(data: Data(string.utf8))
+        var bytes = Array(digest)
+        bytes[6] = (bytes[6] & 0x0F) | 0x40 // Version 4
+        bytes[8] = (bytes[8] & 0x3F) | 0x80 // Variant 1
+        let uuidTuple: uuid_t = (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        )
+        return UUID(uuid: uuidTuple)
     }
     
     public func toNoteModel(sourceDeviceId: String?, sourceDeviceName: String?) -> NoteModel {
@@ -252,6 +388,77 @@ public struct SyncAppRequest: Codable, Sendable {
         self.notes = notes
         self.since = since
     }
+    
+    private enum CodingKeys: String, CodingKey {
+        case action, notes, since
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // 1. Action decoding (case-insensitive & synonym mapping)
+        if let actionStr = try? container.decode(String.self, forKey: .action) {
+            let normalized = actionStr.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            switch normalized {
+            case "PUSH_NOTES", "PUSH", "PUSHNOTES":
+                self.action = .pushNotes
+            case "PULL_NOTES", "PULL", "PULLNOTES":
+                self.action = .pullNotes
+            case "SYNC_ALL", "SYNC", "SYNCALL":
+                self.action = .syncAll
+            case "PING":
+                self.action = .ping
+            case "PONG":
+                self.action = .pong
+            case "UNPAIR":
+                self.action = .unpair
+            case "ACK":
+                self.action = .ack
+            default:
+                self.action = .syncAll
+            }
+        } else {
+            self.action = .syncAll
+        }
+        
+        // 2. Notes decoding (tolerant of note-level errors)
+        if var notesArray = try? container.nestedUnkeyedContainer(forKey: .notes) {
+            var decodedNotes: [SyncNoteDTO] = []
+            while !notesArray.isAtEnd {
+                if let note = try? notesArray.decode(SyncNoteDTO.self) {
+                    decodedNotes.append(note)
+                } else {
+                    // Skip corrupt note without failing entire array
+                    _ = try? notesArray.decode(AnyDecodableIgnore.self)
+                }
+            }
+            self.notes = decodedNotes.isEmpty ? nil : decodedNotes
+        } else {
+            self.notes = nil
+        }
+        
+        // 3. Since date decoding
+        if let sinceStr = try? container.decodeIfPresent(String.self, forKey: .since) {
+            self.since = SyncNoteDTO.parseDateString(sinceStr)
+        } else if let sinceNum = try? container.decodeIfPresent(Double.self, forKey: .since) {
+            if sinceNum > 100_000_000_000 { self.since = Date(timeIntervalSince1970: sinceNum / 1000.0) }
+            else if sinceNum > 100_000_000 { self.since = Date(timeIntervalSince1970: sinceNum) }
+            else { self.since = Date(timeIntervalSinceReferenceDate: sinceNum) }
+        } else {
+            self.since = nil
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(action.rawValue, forKey: .action)
+        try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encodeIfPresent(since, forKey: .since)
+    }
+}
+
+fileprivate struct AnyDecodableIgnore: Decodable {
+    init(from decoder: Decoder) throws {}
 }
 
 public struct SyncAppResponse: Codable, Sendable {

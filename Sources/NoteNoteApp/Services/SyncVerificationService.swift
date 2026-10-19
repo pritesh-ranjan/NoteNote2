@@ -123,6 +123,11 @@ public final class SyncVerificationService {
                 assert(NotesStore.shared.pairedDevices.contains(where: { $0.id == deviceId }), "Paired device was not stored in NotesStore!")
                 print("✅ [SyncTest] Device successfully stored in NotesStore.pairedDevices")
                 
+                let isoEncoder = JSONEncoder()
+                isoEncoder.dateEncodingStrategy = .iso8601
+                let isoDecoder = JSONDecoder()
+                isoDecoder.dateDecodingStrategy = .iso8601
+                
                 // 10. Send Encrypted PUSH_NOTES (seq=1)
                 let testNote = SyncNoteDTO(
                     id: UUID(),
@@ -134,7 +139,7 @@ public final class SyncVerificationService {
                 let pushReq = SyncAppRequest(action: .pushNotes, notes: [testNote])
                 let (pushIv, pushCiphertext) = try SyncCryptoService.encryptAESGCM(
                     key: sessionKey,
-                    plaintext: try JSONEncoder().encode(pushReq),
+                    plaintext: try isoEncoder.encode(pushReq),
                     seq: 1,
                     direction: "C2S"
                 )
@@ -161,7 +166,7 @@ public final class SyncVerificationService {
                     seq: pushRespEnc.seq,
                     direction: "S2C"
                 )
-                let pushResp = try JSONDecoder().decode(SyncAppResponse.self, from: pushRespData)
+                let pushResp = try isoDecoder.decode(SyncAppResponse.self, from: pushRespData)
                 assert(pushResp.status == "OK" && pushResp.upsertedCount == 1, "Expected status OK and upsertedCount 1")
                 print("✅ [SyncTest] PUSH_NOTES succeeded. Upserted: \(pushResp.upsertedCount ?? 0)")
                 
@@ -173,7 +178,7 @@ public final class SyncVerificationService {
                 let pullReq = SyncAppRequest(action: .pullNotes)
                 let (pullIv, pullCiphertext) = try SyncCryptoService.encryptAESGCM(
                     key: sessionKey,
-                    plaintext: try JSONEncoder().encode(pullReq),
+                    plaintext: try isoEncoder.encode(pullReq),
                     seq: 2,
                     direction: "C2S"
                 )
@@ -200,7 +205,7 @@ public final class SyncVerificationService {
                     seq: pullRespEnc.seq,
                     direction: "S2C"
                 )
-                let pullResp = try JSONDecoder().decode(SyncAppResponse.self, from: pullRespData)
+                let pullResp = try isoDecoder.decode(SyncAppResponse.self, from: pullRespData)
                 assert(pullResp.status == "OK" && (pullResp.notes?.count ?? 0) > 0, "Expected non-empty notes list from Mac")
                 print("✅ [SyncTest] PULL_NOTES succeeded. Received \(pullResp.notes?.count ?? 0) notes from Mac!")
                 

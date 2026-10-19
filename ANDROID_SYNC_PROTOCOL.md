@@ -1,312 +1,179 @@
-# NoteNote Local Wi-Fi Sync Protocol Specification (Android Client Implementation Guide)
+# NoteNote Wi-Fi Sync Protocol & Android Implementation Guide
 
-This document specifies the exact network, discovery, pairing, cryptography, and synchronization protocol used by **NoteNote for Mac** to sync notes with an Android companion app over the same Wi-Fi network.
-
-Feed this document to an AI coding agent or Android developer to implement the Android client.
+Technical specification for implementing the companion Android sync client for **NoteNote for Mac**.
 
 ---
 
-## 1. Architectural Overview
+## 1. Protocol Architecture & Parameters
 
 - **Transport**: Standard WebSocket (`ws://<mac-ip>:<port>`).
-- **Default Port**: `52849` (configurable in Mac Preferences).
-- **Service Discovery**: mDNS / Bonjour using Android's native `NsdManager` (`_notenote-sync._tcp.`). Manual IP and port connection is supported as fallback.
-- **Pairing Mode**: Bluetooth-style Secure Simple Pairing (Numeric Comparison) with a 6-digit verification code confirmed on both devices.
-- **Subsequent Reconnects**: Fast, passwordless automatic session authentication using a persisted 256-bit `linkKey`.
-- **Encryption Suite**:
-  - **Key Agreement**: NIST `P-256` (`secp256r1`) ECDH.
-  - **Public Key Encoding**: Standard X.509 `SubjectPublicKeyInfo` DER (`publicKey.encoded` in Android `java.security` $\leftrightarrow$ `publicKey.derRepresentation` in Apple `CryptoKit`).
-  - **Key Derivation**: RFC 5869 `HKDF-SHA256`.
-  - **Message Authentication**: `HMAC-SHA256`.
-  - **Symmetric Encryption**: `AES-256-GCM` with a 12-byte random IV, 16-byte authentication tag, and monotonic sequence counter Additional Authenticated Data (`AAD`) preventing replay and reflection attacks.
+- **Default Port**: `52849` (TCP).
+- **Service Discovery**: mDNS / DNS-SD (`_notenote-sync._tcp.`).
+- **Key Agreement**: Ephemeral `P-256` (`secp256r1`) ECDH (DER / X.509 `SubjectPublicKeyInfo`).
+- **Pairing Authentication**: 6-digit numeric comparison with anti-MITM nonce commitment.
+- **Session Authentication**: Fast reconnect using stored 256-bit `linkKey`.
+- **Payload Encryption**: `AES-256-GCM` (12-byte IV, 16-byte tag, 64-bit monotonic sequence counter as AAD).
+- **Date Format**: ISO-8601 UTC string (`"yyyy-MM-dd'T'HH:mm:ss'Z'"`).
 
 ---
 
-## 2. Service Discovery (mDNS / Bonjour)
+## 2. Android Prerequisites & Setup
 
-The Mac advertises a Bonjour service on the local network:
-- **Service Type**: `_notenote-sync._tcp.` (or `_notenote-sync._tcp` without trailing dot).
-- **Service Name**: Usually the user's Mac name (e.g., `Pritesh’s MacBook Air`).
-- **Port**: Typically `52849`.
+### Permissions (`AndroidManifest.xml`)
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<!-- Required on Android OEMs to prevent multicast packet drop during mDNS discovery -->
+<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+```
 
-### Android `NsdManager` Implementation Example:
+### Local Cleartext WebSocket (`res/xml/network_security_config.xml`)
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
+```
+
+### Dependencies (`build.gradle.kts`)
 ```kotlin
-import android.content.Context
-import android.net.nsd.NsdManager
-import android.net.nsd.NsdServiceInfo
-
-class NoteNoteDiscovery(context: Context, val onDiscovered: (host: String, port: Int, name: String) -> Unit) {
-    private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
-    private val serviceType = "_notenote-sync._tcp."
-
-    private val discoveryListener = object : NsdManager.DiscoveryListener {
-        override fun onDiscoveryStarted(regType: String) {}
-        override fun onServiceFound(service: NsdServiceInfo) {
-            if (service.serviceType.contains("_notenote-sync")) {
-                nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-                    override fun onServiceResolved(resolved: NsdServiceInfo) {
-                        val host = resolved.host.hostAddress ?: return
-                        onDiscovered(host, resolved.port, resolved.serviceName)
-                    }
-                    override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
-                })
-            }
-        }
-        override fun onServiceLost(service: NsdServiceInfo) {}
-        override fun onDiscoveryStopped(serviceType: String) {}
-        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
-        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
-    }
-
-    fun start() = nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-    fun stop() = nsdManager.stopServiceDiscovery(discoveryListener)
-}
+implementation("com.squareup.okhttp3:okhttp:4.12.0")
+implementation("androidx.security:security-crypto:1.1.0-alpha06")
 ```
 
 ---
 
-## 3. WebSocket Wire Framing
+## 3. Wire Framing
 
-All messages over the WebSocket are UTF-8 JSON text frames with an outer envelope:
-
+All WebSocket messages are UTF-8 JSON text frames with an outer envelope:
 ```json
 {
   "type": "<MESSAGE_TYPE>",
-  "payload": "<JSON string of the inner payload>"
+  "payload": "<JSON string of inner payload>"
 }
 ```
-
-> **Note**: `payload` is an escaped JSON string of the inner structure.
+*Note: `payload` is an escaped JSON string.*
 
 ---
 
-## 4. First-Time Pairing (6-Digit Numeric Comparison)
+## 4. Cryptographic Formulas
 
 ```
-Android (Client)                                          Mac (Server)
-      |                                                        |
-      | 1. PAIR_INIT                                           |
-      |------------------------------------------------------->|
-      |    (deviceId, deviceName, clientPubKeyDER,             |
-      |     clientNonceCommit = SHA256(clientNonce))           |
-      |                                                        |
-      | 2. PAIR_CHALLENGE                                      |
-      |<-------------------------------------------------------|
-      |    (serverId, serverName, serverPubKeyDER, serverNonce)|
-      |                                                        |
-      | 3. PAIR_REVEAL                                         |
-      |------------------------------------------------------->|
-      |    (clientNonce)                                       |
-      |                                                        |
-      | [Both compute ECDH shared secret Z & 6-digit code]     |
-      | [Both prompt user: "Confirm 123 456?"]                 |
-      | [User taps "Confirm" on Android & Mac]                 |
-      |                                                        |
-      | 4. PAIR_CONFIRM                                        |
-      |------------------------------------------------------->|
-      |    (clientHmac = HMAC(linkKey, "CLIENT_PAIR_CONFIRM"   |
-      |                   + clientNonce + serverNonce))        |
-      |                                                        |
-      | 5. PAIR_COMPLETE                                       |
-      |<-------------------------------------------------------|
-      |    (serverHmac = HMAC(linkKey, "SERVER_PAIR_COMPLETE"  |
-      |                   + serverNonce + clientNonce))        |
-      |                                                        |
-      | [Both save linkKey for automatic reconnect]            |
-```
+1. Nonce Commitment:
+   clientNonceCommit = SHA256(clientNonce)
 
-### 4.1 Step 1: `PAIR_INIT` (Android $\rightarrow$ Mac)
-- Android generates an ephemeral `P-256` keypair $(sk_C, pk_C)$ and a 32-byte random `clientNonce`.
-- Android computes `clientNonceCommit = SHA256(clientNonce)`.
-- Android sends:
-```json
-{
-  "type": "PAIR_INIT",
-  "payload": "{\"deviceId\":\"<android-uuid>\",\"deviceName\":\"Pixel 8 Pro\",\"clientPubKeyDER\":\"<base64-x509-der>\",\"clientNonceCommit\":\"<base64-sha256>\"}"
-}
-```
+2. Shared Secret:
+   Z = ECDH(clientPrivKey, serverPubKey)
 
-### 4.2 Step 2: `PAIR_CHALLENGE` (Mac $\rightarrow$ Android)
-- Mac generates an ephemeral `P-256` keypair $(sk_S, pk_S)$ and a 32-byte random `serverNonce`.
-- Mac sends:
-```json
-{
-  "type": "PAIR_CHALLENGE",
-  "payload": "{\"serverId\":\"NoteNote-Mac\",\"serverName\":\"Pritesh’s MacBook Air\",\"serverPubKeyDER\":\"<base64-x509-der>\",\"serverNonce\":\"<base64-32bytes>\"}"
-}
-```
+3. 6-Digit Verification Code:
+   transcript = "NoteNote-Pair-v1".utf8Bytes + clientPubKeyDER + serverPubKeyDER + clientNonce + serverNonce
+   digest = SHA256(transcript)
+   code = ((digest[0]<<24) | (digest[1]<<16) | (digest[2]<<8) | digest[3]) % 1,000,000
+   sixDigitCode = String.format("%06d", code)
 
-### 4.3 Step 3: `PAIR_REVEAL` (Android $\rightarrow$ Mac)
-- Android reveals its `clientNonce`:
-```json
-{
-  "type": "PAIR_REVEAL",
-  "payload": "{\"clientNonce\":\"<base64-32bytes>\"}"
-}
-```
-- Mac verifies `SHA256(clientNonce) == clientNonceCommit`. This commitment step strictly prevents a rogue MITM from grinding nonces to force a matching 6-digit code.
+4. Link Key (persisted for fast reconnect):
+   linkKey = HKDF-SHA256(ikm: Z, salt: clientNonce + serverNonce, info: "NoteNote-LinkKey-v1", len: 32)
 
-### 4.4 Step 4: 6-Digit Code Derivation & User Confirmation
-Both sides compute the exact same transcript and 6-digit code:
-```
-transcript = "NoteNote-Pair-v1".utf8Bytes
-           + clientPubKeyDER.rawBytes
-           + serverPubKeyDER.rawBytes
-           + clientNonce.rawBytes
-           + serverNonce.rawBytes
+5. Session Key (per-connection encryption):
+   sessionKey = HKDF-SHA256(ikm: Z, salt: linkKey, info: "NoteNote-SessionKey-v1" + clientNonce + serverNonce, len: 32)
 
-digest = SHA256(transcript)
-fourBytesBE = (digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3]
-sixDigitCode = String.format("%06d", (fourBytesBE.toLong() and 0xFFFFFFFFL) % 1000000)
-```
-- Both devices display `sixDigitCode` (e.g. `482 910`).
-- The user confirms that the numbers match on both screens.
+6. Authentication HMACs:
+   clientPairHmac    = HMAC-SHA256(linkKey,    "CLIENT_PAIR_CONFIRM" + clientNonce + serverNonce)
+   serverPairHmac    = HMAC-SHA256(linkKey,    "SERVER_PAIR_COMPLETE" + serverNonce + clientNonce)
+   clientSessionHmac = HMAC-SHA256(sessionKey, "CLIENT_SESSION_AUTH" + clientNonce + serverNonce)
+   serverSessionHmac = HMAC-SHA256(sessionKey, "SERVER_SESSION_OK" + serverNonce + clientNonce)
 
-### 4.5 Key Derivation (`linkKey` and `sessionKey`)
-Both sides compute:
-1. `sharedSecret Z = ECDH(sk, pk_peer)`
-2. `linkKey = HKDF-SHA256(ikm: Z, salt: clientNonce + serverNonce, info: "NoteNote-LinkKey-v1".utf8Bytes, length: 32)`
-3. `sessionKey = HKDF-SHA256(ikm: Z, salt: linkKey, info: "NoteNote-SessionKey-v1".utf8Bytes + clientNonce + serverNonce, length: 32)`
-
-### 4.6 Step 5: `PAIR_CONFIRM` (Android $\rightarrow$ Mac)
-When the user taps Confirm on Android:
-- Android computes:
-  ```
-  clientHmac = HMAC-SHA256(key: linkKey, data: "CLIENT_PAIR_CONFIRM".utf8Bytes + clientNonce + serverNonce)
-  ```
-- Android sends:
-```json
-{
-  "type": "PAIR_CONFIRM",
-  "payload": "{\"clientHmac\":\"<base64-32bytes>\"}"
-}
-```
-
-### 4.7 Step 6: `PAIR_COMPLETE` (Mac $\rightarrow$ Android)
-When the user confirms on Mac and Mac verifies `clientHmac`:
-- Mac computes:
-  ```
-  serverHmac = HMAC-SHA256(key: linkKey, data: "SERVER_PAIR_COMPLETE".utf8Bytes + serverNonce + clientNonce)
-  ```
-- Mac sends:
-```json
-{
-  "type": "PAIR_COMPLETE",
-  "payload": "{\"serverHmac\":\"<base64-32bytes>\",\"status\":\"OK\"}"
-}
-```
-- Android verifies `serverHmac`.
-- Android securely saves `linkKey` and `deviceId` (e.g., using Android's `EncryptedSharedPreferences`).
-- The connection is now authenticated. Subsequent frames are encrypted with `sessionKey`.
-
----
-
-## 5. Subsequent Wi-Fi Reconnect (Passwordless Session)
-
-When reconnecting to the Mac on the same Wi-Fi, the 6-digit prompt is **skipped**:
-
-```
-Android (Client)                                          Mac (Server)
-      |                                                        |
-      | 1. SESSION_INIT                                        |
-      |------------------------------------------------------->|
-      |    (deviceId, clientPubKeyDER, clientNonce)            |
-      |                                                        |
-      | 2. SESSION_CHALLENGE                                   |
-      |<-------------------------------------------------------|
-      |    (serverId, serverPubKeyDER, serverNonce)            |
-      |                                                        |
-      | [Both compute ECDH shared secret Z]                    |
-      | [Both derive sessionKey using stored linkKey]          |
-      |                                                        |
-      | 3. SESSION_AUTH                                        |
-      |------------------------------------------------------->|
-      |    (clientHmac = HMAC(sessionKey,                      |
-      |         "CLIENT_SESSION_AUTH" + clientNonce + sNonce)) |
-      |                                                        |
-      | 4. SESSION_OK                                          |
-      |<-------------------------------------------------------|
-      |    (serverHmac = HMAC(sessionKey,                      |
-      |         "SERVER_SESSION_OK" + sNonce + clientNonce))   |
-      |                                                        |
-      | [Connection is authenticated; start encrypted sync]    |
-```
-
-### 5.1 `SESSION_INIT`
-```json
-{
-  "type": "SESSION_INIT",
-  "payload": "{\"deviceId\":\"<android-uuid>\",\"clientPubKeyDER\":\"<base64-x509-der>\",\"clientNonce\":\"<base64-32bytes>\"}"
-}
-```
-
-### 5.2 `SESSION_CHALLENGE`
-```json
-{
-  "type": "SESSION_CHALLENGE",
-  "payload": "{\"serverId\":\"NoteNote-Mac\",\"serverPubKeyDER\":\"<base64-x509-der>\",\"serverNonce\":\"<base64-32bytes>\"}"
-}
-```
-
-### 5.3 Session Key Derivation
-Both sides compute:
-1. `sharedSecret Z = ECDH(sk, pk_peer)`
-2. `sessionKey = HKDF-SHA256(ikm: Z, salt: linkKey, info: "NoteNote-SessionKey-v1".utf8Bytes + clientNonce + serverNonce, length: 32)`
-
-### 5.4 `SESSION_AUTH`
-- `clientHmac = HMAC-SHA256(sessionKey, "CLIENT_SESSION_AUTH".utf8Bytes + clientNonce + serverNonce)`
-```json
-{
-  "type": "SESSION_AUTH",
-  "payload": "{\"clientHmac\":\"<base64-32bytes>\"}"
-}
-```
-
-### 5.5 `SESSION_OK`
-- `serverHmac = HMAC-SHA256(sessionKey, "SERVER_SESSION_OK".utf8Bytes + serverNonce + clientNonce)`
-```json
-{
-  "type": "SESSION_OK",
-  "payload": "{\"serverHmac\":\"<base64-32bytes>\",\"status\":\"OK\"}"
-}
+7. Frame Encryption (AES-256-GCM):
+   IV        = 12 random bytes
+   AAD       = "C2S:<seq>" (Client to Mac) | "S2C:<seq>" (Mac to Client)
+   Ciphertext = AES-GCM(key: sessionKey, iv: IV, aad: AAD, plaintext: data) // includes 16-byte tag
 ```
 
 ---
 
-## 6. Encrypted Application Messages (`ENCRYPTED`)
+## 5. Handshake Sequences
 
-Once authenticated, both sides maintain monotonic 64-bit sequence counters:
-- `outSeq`: starts at `1`, increments by `1` with every encrypted frame sent.
-- `inSeq`: starts at `1`, increments by `1` with every encrypted frame received. Replayed or out-of-order frames are rejected.
+### 5.1 First-Time Pairing (Numeric Comparison)
 
-### Encryption Details:
-- **Algorithm**: `AES/GCM/NoPadding` (256-bit key).
-- **IV / Nonce**: 12 random bytes generated per frame.
-- **AAD (Additional Authenticated Data)**:
-  - From Android to Mac: `"C2S:<seq>"`.
-  - From Mac to Android: `"S2C:<seq>"`.
-- **Ciphertext**: In standard Java/Android, `cipher.doFinal()` appends the 16-byte authentication tag to the end of the ciphertext (`ciphertext + tag`), which matches macOS `CryptoKit` byte-for-byte.
+```
+Android (Client)                                                  Mac (Server)
+      │                                                                │
+      │ 1. PAIR_INIT                                                   │
+      ├───────────────────────────────────────────────────────────────>│
+      │    {"deviceId": "...", "deviceName": "Pixel 8",                │
+      │     "clientPubKeyDER": "<b64>", "clientNonceCommit": "<b64>"}  │
+      │                                                                │
+      │ 2. PAIR_CHALLENGE                                              │
+      │<───────────────────────────────────────────────────────────────┤
+      │    {"serverId": "NoteNote-Mac", "serverName": "MacBook",       │
+      │     "serverPubKeyDER": "<b64>", "serverNonce": "<b64>"}        │
+      │                                                                │
+      │ 3. PAIR_REVEAL                                                 │
+      ├───────────────────────────────────────────────────────────────>│
+      │    {"clientNonce": "<b64>"}                                    │
+      │                                                                │
+      │ [Both derive 6-digit code. Prompt user to confirm on both]     │
+      │                                                                │
+      │ 4. PAIR_CONFIRM (after user tap)                               │
+      ├───────────────────────────────────────────────────────────────>│
+      │    {"clientHmac": "<b64>"}                                     │
+      │                                                                │
+      │ 5. PAIR_COMPLETE                                               │
+      │<───────────────────────────────────────────────────────────────┤
+      │    {"serverHmac": "<b64>", "status": "OK"}                     │
+      │                                                                │
+      │ [Both persist linkKey; initialize seq: outSeq=1, inSeq=1]      │
+```
 
-### Encrypted Wire Frame:
+### 5.2 Subsequent Reconnect (Passwordless)
+
+```
+Android (Client)                                                  Mac (Server)
+      │                                                                │
+      │ 1. SESSION_INIT                                                │
+      ├───────────────────────────────────────────────────────────────>│
+      │    {"deviceId": "...", "clientPubKeyDER": "<b64>",             │
+      │     "clientNonce": "<b64>"}                                    │
+      │                                                                │
+      │ 2. SESSION_CHALLENGE                                           │
+      │<───────────────────────────────────────────────────────────────┤
+      │    {"serverId": "...", "serverPubKeyDER": "<b64>",             │
+      │     "serverNonce": "<b64>"}                                    │
+      │                                                                │
+      │ [Both derive sessionKey via stored linkKey]                    │
+      │                                                                │
+      │ 3. SESSION_AUTH                                                │
+      ├───────────────────────────────────────────────────────────────>│
+      │    {"clientHmac": "<b64>"}                                     │
+      │                                                                │
+      │ 4. SESSION_OK                                                  │
+      │<───────────────────────────────────────────────────────────────┤
+      │    {"serverHmac": "<b64>", "status": "OK"}                     │
+      │                                                                │
+      │ [Authenticated; outSeq=1, inSeq=1; ready for ENCRYPTED frames] │
+```
+
+---
+
+## 6. Encrypted Application Messages
+
+Envelope type: `"ENCRYPTED"`:
 ```json
 {
   "type": "ENCRYPTED",
-  "payload": "{\"seq\":1,\"iv\":\"<base64-12bytes>\",\"ciphertext\":\"<base64-ciphertext-with-tag>\"}"
+  "payload": "{\"seq\":1,\"iv\":\"<b64-12B>\",\"ciphertext\":\"<b64-ciphertext-with-tag>\"}"
 }
 ```
 
----
+- `outSeq` increments by 1 with each sent frame.
+- `inSeq` increments by 1 with each received frame (reject if `seq != inSeq`).
 
-## 7. Sync Payloads & Actions
-
-The decrypted plaintext is UTF-8 JSON.
-
-### 7.1 Data Model (`SyncNoteDTO`)
+### 6.1 `SyncNoteDTO` Data Model
 ```json
 {
   "id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
-  "title": "Shopping List 🛒",
-  "content": "- [x] Milk\n- [ ] Coffee\n- [ ] Apples",
+  "title": "Shopping List",
+  "content": "- [x] Coffee\n- [ ] Milk",
   "color": "yellow",
   "isPinned": false,
   "isLocked": false,
@@ -315,87 +182,30 @@ The decrypted plaintext is UTF-8 JSON.
   "deletedAt": null
 }
 ```
-Supported `color` values: `"yellow"`, `"blue"`, `"green"`, `"pink"`, `"purple"`, `"orange"`, `"charcoal"`.
+*Colors: `"yellow"`, `"blue"`, `"green"`, `"pink"`, `"purple"`, `"orange"`, `"charcoal"`.*
 
-### 7.2 Android Pushing Notes to Mac (`PUSH_NOTES`)
-**Request (decrypted)**:
-```json
-{
-  "action": "PUSH_NOTES",
-  "notes": [
-    {
-      "id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
-      "title": "Meeting Notes",
-      "content": "Discussed roadmap items.",
-      "color": "blue",
-      "isPinned": true,
-      "isLocked": false,
-      "createdAt": "2026-10-19T09:00:00Z",
-      "updatedAt": "2026-10-19T09:15:00Z"
-    }
-  ]
-}
-```
+### 6.2 Application Actions (Decrypted Plaintext)
 
-**Response from Mac (decrypted)**:
-```json
-{
-  "status": "OK",
-  "action": "PUSH_NOTES",
-  "upsertedCount": 1,
-  "serverTime": "2026-10-19T10:31:00Z"
-}
-```
-On Mac, these notes appear in the **Phone Sync** tab of the Notes Dashboard, with a button for the Mac user to pop any note out onto their desktop as a floating sticky.
+- **Push Notes (Android $\rightarrow$ Mac)**:
+  `{"action": "PUSH_NOTES", "notes": [ ... ]}`
+  Response: `{"status": "OK", "action": "PUSH_NOTES", "upsertedCount": 1, "serverTime": "..."}`
+  *(Notes appear in the Mac's "Phone Sync" dashboard tab).*
 
-### 7.3 Android Requesting Notes from Mac (`PULL_NOTES`)
-**Request (decrypted)**:
-```json
-{
-  "action": "PULL_NOTES",
-  "since": "2026-10-19T00:00:00Z"
-}
-```
-*(Optionally omit `"since"` to pull all notes).*
+- **Pull Notes (Android $\leftarrow$ Mac)**:
+  `{"action": "PULL_NOTES", "since": "2026-10-19T00:00:00Z"}`
+  Response: `{"status": "OK", "action": "PULL_NOTES", "notes": [ ... ], "serverTime": "..."}`
 
-**Response from Mac (decrypted)**:
-```json
-{
-  "status": "OK",
-  "action": "PULL_NOTES",
-  "notes": [ ... ],
-  "serverTime": "2026-10-19T10:31:05Z"
-}
-```
-The Mac returns all active non-locked desktop sticky notes and phone synced notes.
+- **Full Sync (Bidirectional)**:
+  `{"action": "SYNC_ALL", "notes": [ ... ], "since": "2026-10-19T00:00:00Z"}`
+  Response: `{"status": "OK", "action": "SYNC_ALL", "upsertedCount": 1, "notes": [ ... ], "serverTime": "..."}`
 
-### 7.4 Bidirectional Sync (`SYNC_ALL`)
-Pushes local Android changes and pulls Mac changes in one round-trip:
-**Request (decrypted)**:
-```json
-{
-  "action": "SYNC_ALL",
-  "notes": [ ... ],
-  "since": "2026-10-19T00:00:00Z"
-}
-```
-**Response from Mac (decrypted)**:
-```json
-{
-  "status": "OK",
-  "action": "SYNC_ALL",
-  "upsertedCount": 2,
-  "notes": [ ... ],
-  "serverTime": "2026-10-19T10:31:10Z"
-}
-```
+- **Conflict Resolution**: Last-Write-Wins based on `updatedAt`. If `deletedAt != null`, mark as deleted.
 
 ---
 
-## 8. Complete Drop-In Kotlin Cryptography Helper
+## 7. Reference Implementation (Kotlin)
 
-Here is a tested, standalone Kotlin file implementing all cryptographic operations using standard Android `java.security` and `javax.crypto` with **zero external dependencies**:
-
+### 7.1 `NoteNoteCrypto.kt`
 ```kotlin
 package com.notenote.android.sync
 
@@ -411,141 +221,276 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object NoteNoteCrypto {
-    private val secureRandom = SecureRandom()
+    private val random = SecureRandom()
 
-    fun generateRandomBytes(count: Int = 32): ByteArray {
-        val bytes = ByteArray(count)
-        secureRandom.nextBytes(bytes)
-        return bytes
+    fun randomBytes(n: Int = 32) = ByteArray(n).also { random.nextBytes(it) }
+    fun sha256(b: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(b)
+
+    fun generateP256KeyPair(): KeyPair = KeyPairGenerator.getInstance("EC").run {
+        initialize(ECGenParameterSpec("secp256r1"), random)
+        generateKeyPair()
     }
 
-    fun sha256(data: ByteArray): ByteArray {
-        return MessageDigest.getInstance("SHA-256").digest(data)
-    }
+    fun importPublicKeyDER(der: ByteArray): PublicKey =
+        KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(der))
 
-    // 1. P-256 Ephemeral Key Pair Generation
-    fun generateP256KeyPair(): KeyPair {
-        val kpg = KeyPairGenerator.getInstance("EC")
-        kpg.initialize(ECGenParameterSpec("secp256r1"), secureRandom)
-        return kpg.generateKeyPair()
-    }
-
-    // 2. Import X.509 DER Public Key (matching Apple CryptoKit derRepresentation)
-    fun importPublicKeyDER(derBytes: ByteArray): PublicKey {
-        val keyFactory = KeyFactory.getInstance("EC")
-        return keyFactory.generatePublic(X509EncodedKeySpec(derBytes))
-    }
-
-    // 3. ECDH Shared Secret
-    fun computeSharedSecret(privateKey: PrivateKey, peerPublicKey: PublicKey): ByteArray {
-        val ka = KeyAgreement.getInstance("ECDH")
-        ka.init(privateKey)
-        ka.doPhase(peerPublicKey, true)
-        return ka.generateSecret()
-    }
-
-    // 4. 6-Digit Numeric Comparison Code
-    fun computeSixDigitCode(
-        clientPubKeyDER: ByteArray,
-        serverPubKeyDER: ByteArray,
-        clientNonce: ByteArray,
-        serverNonce: ByteArray
-    ): String {
-        val prefix = "NoteNote-Pair-v1".toByteArray(Charsets.UTF_8)
-        val transcript = prefix + clientPubKeyDER + serverPubKeyDER + clientNonce + serverNonce
-        val digest = sha256(transcript)
-        val num = ByteBuffer.wrap(digest, 0, 4).int.toLong() and 0xFFFFFFFFL
-        val code = num % 1_000_000
-        return String.format("%06d", code)
-    }
-
-    // 5. RFC 5869 HKDF-SHA256 Key Derivation
-    fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int = 32): ByteArray {
-        // Extract
-        val mac = Mac.getInstance("HmacSHA256")
-        val prk = if (salt.isEmpty()) {
-            mac.init(SecretKeySpec(ByteArray(32), "HmacSHA256"))
-            mac.doFinal(ikm)
-        } else {
-            mac.init(SecretKeySpec(salt, "HmacSHA256"))
-            mac.doFinal(ikm)
+    fun computeSharedSecret(priv: PrivateKey, peerPub: PublicKey): ByteArray =
+        KeyAgreement.getInstance("ECDH").run {
+            init(priv); doPhase(peerPub, true); generateSecret()
         }
 
-        // Expand
-        mac.init(SecretKeySpec(prk, "HmacSHA256"))
-        var t = ByteArray(0)
-        val okm = ByteArray(length)
-        var offset = 0
-        var i = 1
+    fun computeSixDigitCode(pkC: ByteArray, pkS: ByteArray, nonceC: ByteArray, nonceS: ByteArray): String {
+        val transcript = "NoteNote-Pair-v1".toByteArray() + pkC + pkS + nonceC + nonceS
+        val digest = sha256(transcript)
+        val num = ByteBuffer.wrap(digest, 0, 4).int.toLong() and 0xFFFFFFFFL
+        return String.format("%06d", num % 1_000_000)
+    }
 
-        while (offset < length) {
-            mac.update(t)
-            mac.update(info)
-            mac.update(i.toByte())
+    fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, len: Int = 32): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(if (salt.isEmpty()) ByteArray(32) else salt, "HmacSHA256"))
+        val prk = mac.doFinal(ikm)
+        mac.init(SecretKeySpec(prk, "HmacSHA256"))
+        var t = ByteArray(0); val okm = ByteArray(len); var offset = 0; var i = 1
+        while (offset < len) {
+            mac.update(t); mac.update(info); mac.update(i.toByte())
             t = mac.doFinal()
-            val chunk = Math.min(t.size, length - offset)
+            val chunk = Math.min(t.size, len - offset)
             System.arraycopy(t, 0, okm, offset, chunk)
-            offset += chunk
-            i++
+            offset += chunk; i++
         }
         return okm
     }
 
-    fun deriveLinkKey(sharedSecret: ByteArray, clientNonce: ByteArray, serverNonce: ByteArray): ByteArray {
-        return hkdfSha256(
-            ikm = sharedSecret,
-            salt = clientNonce + serverNonce,
-            info = "NoteNote-LinkKey-v1".toByteArray(Charsets.UTF_8),
-            length = 32
-        )
-    }
+    fun deriveLinkKey(secret: ByteArray, cNonce: ByteArray, sNonce: ByteArray): ByteArray =
+        hkdfSha256(secret, cNonce + sNonce, "NoteNote-LinkKey-v1".toByteArray(), 32)
 
-    fun deriveSessionKey(sharedSecret: ByteArray, linkKey: ByteArray, clientNonce: ByteArray, serverNonce: ByteArray): ByteArray {
-        val info = "NoteNote-SessionKey-v1".toByteArray(Charsets.UTF_8) + clientNonce + serverNonce
-        return hkdfSha256(
-            ikm = sharedSecret,
-            salt = linkKey,
-            info = info,
-            length = 32
-        )
-    }
+    fun deriveSessionKey(secret: ByteArray, linkKey: ByteArray, cNonce: ByteArray, sNonce: ByteArray): ByteArray =
+        hkdfSha256(secret, linkKey, "NoteNote-SessionKey-v1".toByteArray() + cNonce + sNonce, 32)
 
-    // 6. HMAC-SHA256
-    fun hmacSha256(key: ByteArray, message: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(key, "HmacSHA256"))
-        return mac.doFinal(message)
-    }
+    fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray =
+        Mac.getInstance("HmacSHA256").run {
+            init(SecretKeySpec(key, "HmacSHA256"))
+            doFinal(data)
+        }
 
-    // 7. AES-256-GCM with Directional Sequence AAD
-    fun encryptAESGCM(key: ByteArray, plaintext: ByteArray, seq: Long, direction: String): Pair<ByteArray, ByteArray> {
-        val iv = generateRandomBytes(12)
+    fun encryptAESGCM(key: ByteArray, plaintext: ByteArray, seq: Long, dir: String): Pair<ByteArray, ByteArray> {
+        val iv = randomBytes(12)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, iv))
-        cipher.updateAAD("$direction:$seq".toByteArray(Charsets.UTF_8))
-        val ciphertextWithTag = cipher.doFinal(plaintext)
-        return Pair(iv, ciphertextWithTag)
+        cipher.updateAAD("$dir:$seq".toByteArray())
+        return Pair(iv, cipher.doFinal(plaintext))
     }
 
-    fun decryptAESGCM(key: ByteArray, iv: ByteArray, ciphertextWithTag: ByteArray, seq: Long, direction: String): ByteArray {
+    fun decryptAESGCM(key: ByteArray, iv: ByteArray, ciphertext: ByteArray, seq: Long, dir: String): ByteArray {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, iv))
-        cipher.updateAAD("$direction:$seq".toByteArray(Charsets.UTF_8))
-        return cipher.doFinal(ciphertextWithTag)
+        cipher.updateAAD("$dir:$seq".toByteArray())
+        return cipher.doFinal(ciphertext)
     }
 
-    // Base64 Helpers
-    fun b64Encode(bytes: ByteArray): String = Base64.encodeToString(bytes, Base64.NO_WRAP)
-    fun b64Decode(str: String): ByteArray = Base64.decode(str, Base64.DEFAULT)
+    fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
+    fun unb64(s: String): ByteArray = Base64.decode(s, Base64.DEFAULT)
+}
+```
+
+### 7.2 `NsdDiscoveryHelper.kt`
+```kotlin
+package com.notenote.android.sync
+
+import android.content.Context
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
+
+class NsdDiscoveryHelper(context: Context, private val onServerFound: (host: String, port: Int, name: String) -> Unit) {
+    private val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private var lock: WifiManager.MulticastLock? = null
+
+    private val listener = object : NsdManager.DiscoveryListener {
+        override fun onDiscoveryStarted(reg: String) {}
+        override fun onServiceFound(s: NsdServiceInfo) {
+            if (s.serviceType.contains("_notenote-sync")) {
+                nsd.resolveService(s, object : NsdManager.ResolveListener {
+                    override fun onServiceResolved(res: NsdServiceInfo) {
+                        res.host?.hostAddress?.let { onServerFound(it, res.port, res.serviceName) }
+                    }
+                    override fun onResolveFailed(s: NsdServiceInfo, code: Int) {}
+                })
+            }
+        }
+        override fun onServiceLost(s: NsdServiceInfo) {}
+        override fun onDiscoveryStopped(s: String) {}
+        override fun onStartDiscoveryFailed(s: String, c: Int) { stop() }
+        override fun onStopDiscoveryFailed(s: String, c: Int) {}
+    }
+
+    fun start() {
+        lock = wifi.createMulticastLock("NoteNoteLock").apply { setReferenceCounted(true); acquire() }
+        nsd.discoverServices("_notenote-sync._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
+    }
+
+    fun stop() {
+        try { nsd.stopServiceDiscovery(listener) } catch (_: Exception) {}
+        lock?.let { if (it.isHeld) it.release() }
+        lock = null
+    }
+}
+```
+
+### 7.3 `NoteNoteSyncClient.kt`
+```kotlin
+package com.notenote.android.sync
+
+import android.os.Build
+import okhttp3.*
+import org.json.JSONArray
+import org.json.JSONObject
+import java.security.KeyPair
+import java.security.PublicKey
+
+class NoteNoteSyncClient(
+    private val deviceId: String,
+    private val getStoredLinkKey: (serverId: String) -> String?,
+    private val saveLinkKey: (serverId: String, linkKeyB64: String) -> Unit,
+    private val promptUserConfirm: (code: String, macName: String, onConfirm: () -> Unit) -> Unit,
+    private val onNotesReceived: (List<JSONObject>) -> Unit
+) {
+    private val client = OkHttpClient()
+    private var ws: WebSocket? = null
+    private var kp: KeyPair? = null
+    private var clientNonce: ByteArray? = null
+    private var serverPub: PublicKey? = null
+    private var serverNonce: ByteArray? = null
+    private var serverId = "NoteNote-Mac"
+    private var serverName = "Mac"
+    private var linkKey: ByteArray? = null
+    private var sessionKey: ByteArray? = null
+    private var outSeq: Long = 1
+    private var inSeq: Long = 1
+
+    fun connect(host: String, port: Int = 52849) {
+        val req = Request.Builder().url("ws://$host:$port").build()
+        ws = client.newWebSocket(req, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                val stored = getStoredLinkKey(serverId)
+                if (stored != null) startSession(webSocket, NoteNoteCrypto.unb64(stored))
+                else startPairing(webSocket)
+            }
+            override fun onMessage(webSocket: WebSocket, text: String) = handleWire(webSocket, text)
+        })
+    }
+
+    private fun startPairing(ws: WebSocket) {
+        kp = NoteNoteCrypto.generateP256KeyPair()
+        clientNonce = NoteNoteCrypto.randomBytes(32)
+        val commit = NoteNoteCrypto.sha256(clientNonce!!)
+        send(ws, "PAIR_INIT", JSONObject().apply {
+            put("deviceId", deviceId)
+            put("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}")
+            put("clientPubKeyDER", NoteNoteCrypto.b64(kp!!.public.encoded))
+            put("clientNonceCommit", NoteNoteCrypto.b64(commit))
+        })
+    }
+
+    private fun startSession(ws: WebSocket, storedKey: ByteArray) {
+        linkKey = storedKey
+        kp = NoteNoteCrypto.generateP256KeyPair()
+        clientNonce = NoteNoteCrypto.randomBytes(32)
+        send(ws, "SESSION_INIT", JSONObject().apply {
+            put("deviceId", deviceId)
+            put("clientPubKeyDER", NoteNoteCrypto.b64(kp!!.public.encoded))
+            put("clientNonce", NoteNoteCrypto.b64(clientNonce!!))
+        })
+    }
+
+    private fun handleWire(ws: WebSocket, json: String) {
+        val wire = JSONObject(json)
+        val type = wire.getString("type")
+        val payload = JSONObject(wire.getString("payload"))
+
+        when (type) {
+            "PAIR_CHALLENGE" -> {
+                serverId = payload.getString("serverId")
+                serverName = payload.getString("serverName")
+                serverPub = NoteNoteCrypto.importPublicKeyDER(NoteNoteCrypto.unb64(payload.getString("serverPubKeyDER")))
+                serverNonce = NoteNoteCrypto.unb64(payload.getString("serverNonce"))
+
+                send(ws, "PAIR_REVEAL", JSONObject().put("clientNonce", NoteNoteCrypto.b64(clientNonce!!)))
+
+                val code = NoteNoteCrypto.computeSixDigitCode(kp!!.public.encoded, serverPub!!.encoded, clientNonce!!, serverNonce!!)
+                val z = NoteNoteCrypto.computeSharedSecret(kp!!.private, serverPub!!)
+                linkKey = NoteNoteCrypto.deriveLinkKey(z, clientNonce!!, serverNonce!!)
+                sessionKey = NoteNoteCrypto.deriveSessionKey(z, linkKey!!, clientNonce!!, serverNonce!!)
+
+                promptUserConfirm(code, serverName) {
+                    val hmac = NoteNoteCrypto.hmacSha256(linkKey!!, "CLIENT_PAIR_CONFIRM".toByteArray() + clientNonce!! + serverNonce!!)
+                    send(ws, "PAIR_CONFIRM", JSONObject().put("clientHmac", NoteNoteCrypto.b64(hmac)))
+                }
+            }
+            "PAIR_COMPLETE" -> {
+                saveLinkKey(serverId, NoteNoteCrypto.b64(linkKey!!))
+                outSeq = 1; inSeq = 1
+            }
+            "SESSION_CHALLENGE" -> {
+                serverPub = NoteNoteCrypto.importPublicKeyDER(NoteNoteCrypto.unb64(payload.getString("serverPubKeyDER")))
+                serverNonce = NoteNoteCrypto.unb64(payload.getString("serverNonce"))
+                val z = NoteNoteCrypto.computeSharedSecret(kp!!.private, serverPub!!)
+                sessionKey = NoteNoteCrypto.deriveSessionKey(z, linkKey!!, clientNonce!!, serverNonce!!)
+                val hmac = NoteNoteCrypto.hmacSha256(sessionKey!!, "CLIENT_SESSION_AUTH".toByteArray() + clientNonce!! + serverNonce!!)
+                send(ws, "SESSION_AUTH", JSONObject().put("clientHmac", NoteNoteCrypto.b64(hmac)))
+            }
+            "SESSION_OK" -> {
+                outSeq = 1; inSeq = 1
+            }
+            "ENCRYPTED" -> {
+                val seq = payload.getLong("seq")
+                if (seq != inSeq++) return
+                val iv = NoteNoteCrypto.unb64(payload.getString("iv"))
+                val ct = NoteNoteCrypto.unb64(payload.getString("ciphertext"))
+                val plain = NoteNoteCrypto.decryptAESGCM(sessionKey!!, iv, ct, seq, "S2C")
+                val res = JSONObject(String(plain))
+                res.optJSONArray("notes")?.let { arr ->
+                    onNotesReceived(List(arr.length()) { arr.getJSONObject(it) })
+                }
+            }
+        }
+    }
+
+    fun syncAll(notes: List<JSONObject>, since: String? = null) {
+        val req = JSONObject().apply {
+            put("action", "SYNC_ALL")
+            put("notes", JSONArray(notes))
+            if (since != null) put("since", since)
+        }
+        sendEncrypted(req)
+    }
+
+    private fun sendEncrypted(json: JSONObject) {
+        val currentSeq = outSeq++
+        val (iv, ct) = NoteNoteCrypto.encryptAESGCM(sessionKey!!, json.toString().toByteArray(), currentSeq, "C2S")
+        send(ws!!, "ENCRYPTED", JSONObject().apply {
+            put("seq", currentSeq)
+            put("iv", NoteNoteCrypto.b64(iv))
+            put("ciphertext", NoteNoteCrypto.b64(ct))
+        })
+    }
+
+    private fun send(ws: WebSocket, type: String, payload: JSONObject) {
+        ws.send(JSONObject().put("type", type).put("payload", payload.toString()).toString())
+    }
 }
 ```
 
 ---
 
-## 9. Summary of Security Properties
+## 8. Verification Workflow
 
-1. **Local Link Isolation**: `NWParameters.acceptLocalOnly = true` on Mac blocks all non-local routed traffic.
-2. **Forward Secrecy**: Every connection negotiates a fresh ephemeral `P-256` keypair $(sk, pk)$; compromising a past `sessionKey` does not compromise future sessions.
-3. **Commitment Anti-MITM**: Committing to `SHA256(clientNonce)` in `PAIR_INIT` before `serverNonce` is revealed mathematically prevents an active attacker from grinding nonces to force a matching 6-digit code.
-4. **Replay & Reflection Protection**: Every encrypted frame authenticates an explicit direction (`C2S:` or `S2C:`) and a strictly increasing sequence counter inside the GCM authentication tag.
-5. **Fail-Closed Privacy**: Sticky notes protected by Touch ID (`isLocked == true`) are filtered out at the Mac store layer and are never transmitted over the network.
+1. **Mac**: Open **Preferences** $\rightarrow$ **General** $\rightarrow$ toggle **Enable Local Wi-Fi Sync** to **ON**. Note port (default `52849`).
+2. **Android**: Start discovery. `NsdDiscoveryHelper` discovers `_notenote-sync._tcp.`.
+3. **Connect & Pair**: Connect to Mac. Both screens display the identical 6-digit confirmation code. Tap "Confirm" on both.
+4. **Sync**:
+   - Pushing notes to Mac shows them in the Dashboard **Phone Sync** tab (with option to "Open as Sticky").
+   - Pulling notes loads non-locked Mac desktop notes to Android.
+   - Subsequent reconnects bypass the 6-digit prompt using the saved `linkKey`.

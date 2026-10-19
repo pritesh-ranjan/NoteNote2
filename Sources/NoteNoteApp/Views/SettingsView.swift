@@ -189,12 +189,31 @@ public struct SettingsView: View {
                             Divider().padding(.leading, 14)
                             
                             VStack(alignment: .leading, spacing: 6) {
-                                HStack {
+                                HStack(spacing: 8) {
                                     Text("PAIRED ANDROID DEVICES (\(store.pairedDevices.count))")
                                         .font(.system(size: 10, weight: .bold))
                                         .foregroundColor(Color.white.opacity(0.45))
                                     Spacer()
                                     if !store.pairedDevices.isEmpty {
+                                        Button {
+                                            syncServer.triggerSync()
+                                        } label: {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: "arrow.triangle.2.circlepath")
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .rotationEffect(.degrees(syncServer.isSyncing ? 360 : 0))
+                                                    .animation(syncServer.isSyncing ? Animation.linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: syncServer.isSyncing)
+                                                Text(syncServer.isSyncing ? "Syncing..." : "Sync All")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundColor(Color(red: 0.35, green: 0.85, blue: 0.55))
+                                        
+                                        Text("•")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(Color.white.opacity(0.2))
+                                        
                                         Button("Forget All") {
                                             store.removeAllPairedDevices()
                                         }
@@ -214,21 +233,39 @@ public struct SettingsView: View {
                                         .padding(.bottom, 8)
                                 } else {
                                     ForEach(store.pairedDevices) { dev in
+                                        let isConnected = syncServer.connectedDeviceNames.contains(dev.name)
                                         HStack(spacing: 8) {
                                             Image(systemName: "iphone")
                                                 .font(.system(size: 12))
                                                 .foregroundColor(Color(red: 0.35, green: 0.75, blue: 1.0))
                                             
                                             VStack(alignment: .leading, spacing: 1) {
-                                                Text(dev.name)
-                                                    .font(.system(size: 12, weight: .medium))
-                                                    .foregroundColor(.white)
+                                                HStack(spacing: 5) {
+                                                    Text(dev.name)
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .foregroundColor(.white)
+                                                    
+                                                    if isConnected {
+                                                        Circle()
+                                                            .fill(Color.green)
+                                                            .frame(width: 5, height: 5)
+                                                        Text("Connected")
+                                                            .font(.system(size: 9, weight: .semibold))
+                                                            .foregroundColor(Color.green)
+                                                    }
+                                                }
                                                 Text("Last seen \(dev.lastSeenAt.relativeTimeString)")
                                                     .font(.system(size: 10))
                                                     .foregroundColor(Color.white.opacity(0.45))
                                             }
                                             
                                             Spacer()
+                                            
+                                            Button("Sync") {
+                                                syncServer.triggerSync()
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.mini)
                                             
                                             Button("Forget") {
                                                 store.removePairedDevice(id: dev.id)

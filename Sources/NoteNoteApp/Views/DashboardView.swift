@@ -163,6 +163,29 @@ public struct DashboardView: View {
                 .buttonStyle(.plain)
                 .help("Preferences")
                 
+                if store.settings.wifiSyncEnabled {
+                    // Wi-Fi Sync Now Button
+                    Button {
+                        syncServer.triggerSync()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10, weight: .bold))
+                                .rotationEffect(.degrees(syncServer.isSyncing ? 360 : 0))
+                                .animation(syncServer.isSyncing ? Animation.linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: syncServer.isSyncing)
+                            Text(syncServer.isSyncing ? "Syncing..." : "Sync Now")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        }
+                        .padding(.horizontal, 8)
+                        .frame(height: 26)
+                        .background(Color(red: 0.16, green: 0.62, blue: 0.42))
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Sync notes over local Wi-Fi with paired phone")
+                }
+                
                 // + New Sticky Note
                 Button {
                     let note = store.createNote()
@@ -305,11 +328,39 @@ public struct DashboardView: View {
                     .tint(Color(red: 0.20, green: 0.55, blue: 0.95))
                     .padding(.top, 4)
                 } else {
-                    HStack(spacing: 5) {
-                        Circle().fill(Color.green).frame(width: 6, height: 6)
-                        Text("Ready for pairing on local Wi-Fi")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color.white.opacity(0.6))
+                    VStack(spacing: 8) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(syncServer.activeConnectionCount > 0 ? Color.green : Color(red: 0.20, green: 0.55, blue: 0.95))
+                                .frame(width: 6, height: 6)
+                            Text(syncServer.activeConnectionCount > 0
+                                 ? "Connected: \(syncServer.connectedDeviceNames.first ?? "Phone")"
+                                 : "Listening on Port \(syncServer.localPort) (_notenote-sync._tcp)")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.white.opacity(0.6))
+                        }
+                        
+                        Button {
+                            syncServer.triggerSync()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .rotationEffect(.degrees(syncServer.isSyncing ? 360 : 0))
+                                    .animation(syncServer.isSyncing ? Animation.linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: syncServer.isSyncing)
+                                Text(syncServer.isSyncing ? "Syncing..." : "Sync Notes Now")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(red: 0.16, green: 0.62, blue: 0.42))
+                        .padding(.top, 4)
+                        
+                        if let lastSync = syncServer.lastSyncDate {
+                            Text("Last synced \(lastSync.relativeTimeString)")
+                                .font(.system(size: 10))
+                                .foregroundColor(Color.white.opacity(0.4))
+                        }
                     }
                     .padding(.top, 4)
                 }

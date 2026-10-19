@@ -11,6 +11,9 @@ public final class LocalSyncServer: ObservableObject {
     @Published public private(set) var localIPAddresses: [String] = []
     @Published public private(set) var activeConnectionCount: Int = 0
     @Published public private(set) var activePairingSession: ActivePairingSession? = nil
+    @Published public fileprivate(set) var connectedDeviceNames: [String] = []
+    @Published public fileprivate(set) var isSyncing: Bool = false
+    @Published public fileprivate(set) var lastSyncDate: Date? = nil
     
     private var listener: NWListener?
     private let serverQueue = DispatchQueue(label: "com.priteshranjan.NoteNote.LocalSyncServer", qos: .utility)
@@ -22,6 +25,39 @@ public final class LocalSyncServer: ObservableObject {
     
     public func refreshNetworkInfo() {
         self.localIPAddresses = getLocalIPv4Addresses()
+    }
+    
+    public func updateConnectedDevices() {
+        self.connectedDeviceNames = activeSessions.values.compactMap { $0.authenticatedDeviceName }
+    }
+    
+    public func triggerSync() {
+        guard isRunning else {
+            start()
+            return
+        }
+        
+        refreshNetworkInfo()
+        updateConnectedDevices()
+        let authSessions = activeSessions.values.filter { $0.isAuthenticated }
+        
+        isSyncing = true
+        if authSessions.isEmpty {
+            AppLogger.info("Manual sync triggered on Mac: No phone currently connected. Listening on port \(localPort)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                self?.isSyncing = false
+            }
+            return
+        }
+        
+        for session in authSessions {
+            session.pushMacNotesToClient()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.isSyncing = false
+            self?.lastSyncDate = Date()
+        }
     }
     
     public func start() {
@@ -92,6 +128,8 @@ public final class LocalSyncServer: ObservableObject {
         }
         activeSessions.removeAll()
         activeConnectionCount = 0
+        connectedDeviceNames = []
+        isSyncing = false
         isRunning = false
         activePairingSession = nil
     }
@@ -113,6 +151,7 @@ public final class LocalSyncServer: ObservableObject {
                 guard let self = self else { return }
                 self.activeSessions.removeValue(forKey: id)
                 self.activeConnectionCount = self.activeSessions.count
+                self.updateConnectedDevices()
             }
         }
         
@@ -448,6 +487,7 @@ fileprivate final class SyncConnectionSession: Identifiable {
         
         // Transition to authenticated state
         self.state = .authenticated(device: paired, sessionKey: sessionKey, inSeq: 1, outSeq: 1)
+        server.updateConnectedDevices()
         
         let completePayload = PairCompletePayload(serverHmac: serverHmac.base64EncodedString(), status: "OK")
         sendWireMessage(type: .pairComplete, payload: completePayload)
@@ -527,13 +567,61 @@ fileprivate final class SyncConnectionSession: Identifiable {
         let serverHmac = SyncCryptoService.computeHMAC(key: sessionKey, message: serverMsg)
         
         self.state = .authenticated(device: device, sessionKey: sessionKey, inSeq: 1, outSeq: 1)
+        server.updateConnectedDevices()
         
         let okPayload = SessionOkPayload(serverHmac: serverHmac.base64EncodedString(), status: "OK")
         sendWireMessage(type: .sessionOk, payload: okPayload)
         AppLogger.info("Authenticated trusted session for device '\(device.name)'")
     }
     
-    // MARK: - Encrypted Application Frames
+    var isAuthenticated: Bool {
+        if case .authenticated = state { return true }
+        return false
+    }
+    
+    var authenticatedDeviceName: String? {
+        if case let .authenticated(device, _, _, _) = state { return device.name }
+        return nil
+    }
+    
+    func pushMacNotesToClient() {
+        guard case let .authenticated(device, sessionKey, inSeq, outSeq) = state else { return }
+        let macNotes = NotesStore.shared.exportableNotesForSync()
+        let response = SyncAppResponse(
+            status: "OK",
+            action: .syncAll,
+            notes: macNotes,
+            serverTime: Date()
+        )
+        sendEncryptedResponse(response, sessionKey: sessionKey, seq: outSeq)
+        self.state = .authenticated(device: device, sessionKey: sessionKey, inSeq: inSeq, outSeq: outSeq + 1)
+        AppLogger.info("Pushed \(macNotes.count) notes to '\(device.name)' via manual Mac sync trigger")
+    }
+    
+    private static func makeFlexibleJSONDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            if let str = try? container.decode(String.self) {
+                if let d = SyncNoteDTO.parseDateString(str) { return d }
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date string: \(str)")
+            }
+            if let num = try? container.decode(Double.self) {
+                if num > 100_000_000_000 { return Date(timeIntervalSince1970: num / 1000.0) }
+                if num > 100_000_000 { return Date(timeIntervalSince1970: num) }
+                return Date(timeIntervalSinceReferenceDate: num)
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Expected ISO8601 date string or number")
+        }
+        return decoder
+    }
+    
+    private static func makeISO8601JSONEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
     private func handleEncryptedFrame(_ data: Data) {
         guard case let .authenticated(device, sessionKey, inSeq, outSeq) = self.state else {
             sendError("Not authenticated")
@@ -547,13 +635,14 @@ fileprivate final class SyncConnectionSession: Identifiable {
             return
         }
         
-        // Verify sequence counter to protect against replay
-        guard encPayload.seq == inSeq else {
+        // Tolerate sequence counter matching or starting at 0
+        guard encPayload.seq == inSeq || (encPayload.seq == 0 && inSeq == 1) else {
             AppLogger.warning("Rejected encrypted frame: expected seq \(inSeq), got \(encPayload.seq)")
             sendError("Invalid sequence counter")
             cancel()
             return
         }
+        let effectiveInSeq = max(inSeq, encPayload.seq)
         
         do {
             let plaintextData = try SyncCryptoService.decryptAESGCM(
@@ -563,12 +652,40 @@ fileprivate final class SyncConnectionSession: Identifiable {
                 seq: encPayload.seq,
                 direction: "C2S"
             )
-            let request = try JSONDecoder().decode(SyncAppRequest.self, from: plaintextData)
-            processAppRequest(request, device: device, sessionKey: sessionKey, nextInSeq: inSeq + 1, currentOutSeq: outSeq)
+            
+            let rawJson = String(data: plaintextData, encoding: .utf8) ?? "<non-utf8>"
+            AppLogger.info("Decrypted sync message from '\(device.name)': \(rawJson.prefix(300))")
+            
+            let request: SyncAppRequest
+            if let decoded = try? Self.makeFlexibleJSONDecoder().decode(SyncAppRequest.self, from: plaintextData) {
+                request = decoded
+            } else if let rawObj = try? JSONSerialization.jsonObject(with: plaintextData) as? [String: Any] {
+                let actionStr = (rawObj["action"] as? String)?.uppercased() ?? "SYNC_ALL"
+                let action: EncryptedAction
+                switch actionStr {
+                case "PUSH_NOTES", "PUSH": action = .pushNotes
+                case "PULL_NOTES", "PULL": action = .pullNotes
+                case "PING": action = .ping
+                default: action = .syncAll
+                }
+                var notesList: [SyncNoteDTO] = []
+                if let rawNotes = rawObj["notes"] as? [[String: Any]] {
+                    for noteDict in rawNotes {
+                        if let noteData = try? JSONSerialization.data(withJSONObject: noteDict),
+                           let note = try? Self.makeFlexibleJSONDecoder().decode(SyncNoteDTO.self, from: noteData) {
+                            notesList.append(note)
+                        }
+                    }
+                }
+                request = SyncAppRequest(action: action, notes: notesList.isEmpty ? nil : notesList)
+            } else {
+                request = try Self.makeFlexibleJSONDecoder().decode(SyncAppRequest.self, from: plaintextData)
+            }
+            
+            processAppRequest(request, device: device, sessionKey: sessionKey, nextInSeq: effectiveInSeq + 1, currentOutSeq: outSeq)
         } catch {
             AppLogger.error("Failed to decrypt or decode encrypted frame", error: error)
             sendError("Decryption failure")
-            cancel()
         }
     }
     
@@ -624,11 +741,12 @@ fileprivate final class SyncConnectionSession: Identifiable {
         
         sendEncryptedResponse(response, sessionKey: sessionKey, seq: currentOutSeq)
         self.state = .authenticated(device: device, sessionKey: sessionKey, inSeq: nextInSeq, outSeq: currentOutSeq + 1)
+        server.lastSyncDate = Date()
     }
     
     private func sendEncryptedResponse(_ response: SyncAppResponse, sessionKey: SymmetricKey, seq: UInt64) {
         do {
-            let plaintextData = try JSONEncoder().encode(response)
+            let plaintextData = try Self.makeISO8601JSONEncoder().encode(response)
             let (iv, ciphertext) = try SyncCryptoService.encryptAESGCM(
                 key: sessionKey,
                 plaintext: plaintextData,
