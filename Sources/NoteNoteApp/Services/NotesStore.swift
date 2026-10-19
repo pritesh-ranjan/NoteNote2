@@ -14,8 +14,6 @@ public final class NotesStore: ObservableObject {
     
     @Published public var notes: [NoteModel] = []
     @Published public var deletedNotes: [NoteModel] = []
-    @Published public var syncedNotes: [NoteModel] = []
-    @Published public var pairedDevices: [PairedDevice] = []
     @Published public var settings: AppSettings = .default
     @Published public var activeAppBundleId: String? = nil
     @Published public var areAllNotesHidden: Bool = false
@@ -63,19 +61,9 @@ public final class NotesStore: ObservableObject {
         storageDirectory.appendingPathComponent("settings.json")
     }
     
-    public var syncedNotesFileURL: URL {
-        storageDirectory.appendingPathComponent("synced_notes.json")
-    }
-    
-    public var pairedDevicesFileURL: URL {
-        storageDirectory.appendingPathComponent("paired_devices.json")
-    }
-    
     private init() {
         loadSettings()
         loadNotes()
-        loadSyncedNotes()
-        loadPairedDevices()
         
         saveCancellable = saveSubject
             .debounce(for: .milliseconds(400), scheduler: RunLoop.main)
@@ -419,14 +407,6 @@ public final class NotesStore: ObservableObject {
             
             let settingsData = try JSONEncoder().encode(settings)
             try settingsData.write(to: settingsFileURL, options: .atomic)
-            
-            let syncedData = try JSONEncoder().encode(syncedNotes)
-            try syncedData.write(to: syncedNotesFileURL, options: .atomic)
-            try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: syncedNotesFileURL.path)
-            
-            let pairedData = try JSONEncoder().encode(pairedDevices)
-            try pairedData.write(to: pairedDevicesFileURL, options: .atomic)
-            try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pairedDevicesFileURL.path)
         } catch {
             AppLogger.error("Failed to persist NoteNote data", error: error)
         }
@@ -438,150 +418,6 @@ public final class NotesStore: ObservableObject {
             return
         }
         self.settings = loaded
-    }
-    
-    private func loadSyncedNotes() {
-        guard fileManager.fileExists(atPath: syncedNotesFileURL.path),
-              let data = try? Data(contentsOf: syncedNotesFileURL),
-              let loaded = try? JSONDecoder().decode([NoteModel].self, from: data) else {
-            self.syncedNotes = []
-            return
-        }
-        self.syncedNotes = loaded
-    }
-    
-    private func loadPairedDevices() {
-        guard fileManager.fileExists(atPath: pairedDevicesFileURL.path),
-              let data = try? Data(contentsOf: pairedDevicesFileURL),
-              let loaded = try? JSONDecoder().decode([PairedDevice].self, from: data) else {
-            self.pairedDevices = []
-            return
-        }
-        self.pairedDevices = loaded
-    }
-    
-    // MARK: - Wi-Fi Sync Helpers
-    public func upsertSyncedNotes(_ incoming: [SyncNoteDTO], from device: PairedDevice) {
-        var modified = false
-        for dto in incoming {
-            // 1. Upsert into syncedNotes
-            if let idx = syncedNotes.firstIndex(where: { $0.id == dto.id }) {
-                if dto.updatedAt >= syncedNotes[idx].updatedAt {
-                    syncedNotes[idx].title = dto.title
-                    syncedNotes[idx].content = dto.content
-                    syncedNotes[idx].color = NoteColor(rawValue: dto.color) ?? syncedNotes[idx].color
-                    syncedNotes[idx].isPinned = dto.isPinned
-                    syncedNotes[idx].updatedAt = dto.updatedAt
-                    syncedNotes[idx].deletedAt = dto.deletedAt
-                    syncedNotes[idx].sourceDeviceId = device.id
-                    syncedNotes[idx].sourceDeviceName = device.name
-                    syncedNotes[idx].lastSyncedAt = Date()
-                    modified = true
-                }
-            } else {
-                let newNote = dto.toNoteModel(sourceDeviceId: device.id, sourceDeviceName: device.name)
-                syncedNotes.append(newNote)
-                modified = true
-            }
-            
-            // 2. If this note was already promoted to desktop stickies, sync edits there too
-            if let deskIdx = notes.firstIndex(where: { $0.id == dto.id && !$0.isLocked }) {
-                if dto.updatedAt > notes[deskIdx].updatedAt {
-                    notes[deskIdx].title = dto.title
-                    notes[deskIdx].content = dto.content
-                    notes[deskIdx].color = NoteColor(rawValue: dto.color) ?? notes[deskIdx].color
-                    notes[deskIdx].updatedAt = dto.updatedAt
-                    notes[deskIdx].lastSyncedAt = Date()
-                    modified = true
-                }
-            }
-        }
-        
-        // Update device lastSeenAt
-        if let devIdx = pairedDevices.firstIndex(where: { $0.id == device.id }) {
-            pairedDevices[devIdx].lastSeenAt = Date()
-            pairedDevices[devIdx].name = device.name
-        }
-        
-        if modified {
-            persistData()
-        }
-    }
-    
-    public func promoteSyncedNoteToDesktop(id: UUID) {
-        guard let synced = syncedNotes.first(where: { $0.id == id }) else { return }
-        if let existingIdx = notes.firstIndex(where: { $0.id == id }) {
-            notes[existingIdx].title = synced.title
-            notes[existingIdx].content = synced.content
-            notes[existingIdx].color = synced.color
-            persistData()
-            StickyWindowManager.shared.focusNote(id: id)
-            return
-        }
-        
-        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 100, y: 100, width: 1400, height: 900)
-        let countOffset = Double((notes.count % 8) * 32)
-        var desktopNote = synced
-        desktopNote.frameX = screenFrame.midX - 140 + countOffset
-        desktopNote.frameY = screenFrame.midY - 140 - countOffset
-        desktopNote.frameWidth = 280
-        desktopNote.frameHeight = 280
-        desktopNote.isPrivate = settings.defaultHideFromScreenCapture
-        desktopNote.dockEdge = settings.defaultDockEdge
-        
-        notes.append(desktopNote)
-        persistData()
-        StickyWindowManager.shared.focusNote(id: id)
-    }
-    
-    public func deleteSyncedNote(id: UUID) {
-        if let idx = syncedNotes.firstIndex(where: { $0.id == id }) {
-            var note = syncedNotes.remove(at: idx)
-            note.deletedAt = Date()
-            deletedNotes.insert(note, at: 0)
-            persistData()
-        }
-    }
-    
-    public func exportableNotesForSync() -> [SyncNoteDTO] {
-        var map: [UUID: SyncNoteDTO] = [:]
-        
-        // Active non-locked desktop notes
-        for note in notes where !note.isLocked && note.deletedAt == nil {
-            map[note.id] = SyncNoteDTO(from: note)
-        }
-        
-        // Synced notes
-        for note in syncedNotes where note.deletedAt == nil {
-            if let existing = map[note.id] {
-                if note.updatedAt > existing.updatedAt {
-                    map[note.id] = SyncNoteDTO(from: note)
-                }
-            } else {
-                map[note.id] = SyncNoteDTO(from: note)
-            }
-        }
-        
-        return Array(map.values)
-    }
-    
-    public func addPairedDevice(_ device: PairedDevice) {
-        if let idx = pairedDevices.firstIndex(where: { $0.id == device.id }) {
-            pairedDevices[idx] = device
-        } else {
-            pairedDevices.append(device)
-        }
-        persistData()
-    }
-    
-    public func removePairedDevice(id: String) {
-        pairedDevices.removeAll(where: { $0.id == id })
-        persistData()
-    }
-    
-    public func removeAllPairedDevices() {
-        pairedDevices.removeAll()
-        persistData()
     }
     
     private func loadNotes() {

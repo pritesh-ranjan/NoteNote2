@@ -19,9 +19,9 @@
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.4.1</string>
+    <string>2.5.0</string>
     <key>CFBundleVersion</key>
-    <string>10</string>
+    <string>11</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>
@@ -32,11 +32,5 @@
     <true/>
     <key>NSScreenCaptureUsageDescription</key>
     <string>NoteNote uses screen recording to capture screen areas directly into sticky notes.</string>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>NoteNote uses your local Wi-Fi network to securely pair and sync notes with your Android companion app.</string>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_notenote-sync._tcp</string>
-    </array>
 </dict>
 </plist>

@@ -31,9 +31,6 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
     public var deletedAt: Date?
     public var imageAttachments: [String]
     public var isHeaderHovered: Bool = false
-    public var sourceDeviceId: String?
-    public var sourceDeviceName: String?
-    public var lastSyncedAt: Date?
     
     public init(
         id: UUID = UUID(),
@@ -58,10 +55,7 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         updatedAt: Date = Date(),
         isArchived: Bool = false,
         deletedAt: Date? = nil,
-        imageAttachments: [String] = [],
-        sourceDeviceId: String? = nil,
-        sourceDeviceName: String? = nil,
-        lastSyncedAt: Date? = nil
+        imageAttachments: [String] = []
     ) {
         self.id = id
         self.title = title
@@ -86,9 +80,6 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.isArchived = isArchived
         self.deletedAt = deletedAt
         self.imageAttachments = imageAttachments
-        self.sourceDeviceId = sourceDeviceId
-        self.sourceDeviceName = sourceDeviceName
-        self.lastSyncedAt = lastSyncedAt
     }
     
     enum CodingKeys: String, CodingKey {
@@ -99,7 +90,6 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         case fontSize
         case createdAt, updatedAt, isArchived, deletedAt
         case imageAttachments
-        case sourceDeviceId, sourceDeviceName, lastSyncedAt
     }
     
     public init(from decoder: Decoder) throws {
@@ -127,9 +117,6 @@ public struct NoteModel: Identifiable, Codable, Equatable, Sendable {
         self.isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         self.deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
         self.imageAttachments = try container.decodeIfPresent([String].self, forKey: .imageAttachments) ?? []
-        self.sourceDeviceId = try container.decodeIfPresent(String.self, forKey: .sourceDeviceId)
-        self.sourceDeviceName = try container.decodeIfPresent(String.self, forKey: .sourceDeviceName)
-        self.lastSyncedAt = try container.decodeIfPresent(Date.self, forKey: .lastSyncedAt)
     }
     
     public var displayTitle: String {

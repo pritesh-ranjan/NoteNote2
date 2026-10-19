@@ -1,40 +1,22 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Dashboard Tab Enum
-public enum DashboardTab: String, CaseIterable, Identifiable {
-    case macNotes = "Mac Notes"
-    case phoneSync = "Phone Sync"
-    
-    public var id: String { rawValue }
-    
-    public var icon: String {
-        switch self {
-        case .macNotes: return "macwindow"
-        case .phoneSync: return "iphone"
-        }
-    }
-}
-
 // MARK: - Main Dashboard View
 @MainActor
 public struct DashboardView: View {
     @ObservedObject private var store = NotesStore.shared
     @ObservedObject private var appWatcher = AppWatcherService.shared
-    @ObservedObject private var syncServer = LocalSyncServer.shared
     
-    @State private var selectedTab: DashboardTab = .macNotes
     @State private var searchQuery: String = ""
     
     public init() {}
     
     private var currentNotes: [NoteModel] {
-        let source = selectedTab == .phoneSync ? store.syncedNotes : store.notes
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if trimmed.isEmpty {
-            return source
+            return store.notes
         }
-        return source.filter { note in
+        return store.notes.filter { note in
             if note.title.lowercased().contains(trimmed) { return true }
             if note.content.lowercased().contains(trimmed) { return true }
             if let appName = note.linkedAppName, appName.lowercased().contains(trimmed) { return true }
@@ -62,19 +44,22 @@ public struct DashboardView: View {
             Spacer()
                 .frame(width: 68)
             
-            // Top Left: "Notes Dashboard"
-            Text("Notes Dashboard")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            
-            // Two Tabs Switcher: [ Mac Notes ]  [ Phone Sync ]
-            HStack(spacing: 2) {
-                tabButton(tab: .macNotes)
-                tabButton(tab: .phoneSync)
+            // Top Left: "Notes Dashboard" with count badge
+            HStack(spacing: 6) {
+                Text("Notes Dashboard")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                if !store.notes.isEmpty {
+                    Text("\(store.notes.count)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(Color.white.opacity(0.75))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(Capsule())
+                }
             }
-            .padding(3)
-            .background(Color.black.opacity(0.35))
-            .clipShape(Capsule())
             
             Spacer()
             
@@ -163,29 +148,6 @@ public struct DashboardView: View {
                 .buttonStyle(.plain)
                 .help("Preferences")
                 
-                if store.settings.wifiSyncEnabled {
-                    // Wi-Fi Sync Now Button
-                    Button {
-                        syncServer.triggerSync()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 10, weight: .bold))
-                                .rotationEffect(.degrees(syncServer.isSyncing ? 360 : 0))
-                                .animation(syncServer.isSyncing ? Animation.linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: syncServer.isSyncing)
-                            Text(syncServer.isSyncing ? "Syncing..." : "Sync Now")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        }
-                        .padding(.horizontal, 8)
-                        .frame(height: 26)
-                        .background(Color(red: 0.16, green: 0.62, blue: 0.42))
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Sync notes over local Wi-Fi with paired phone")
-                }
-                
                 // + New Sticky Note
                 Button {
                     let note = store.createNote()
@@ -212,49 +174,6 @@ public struct DashboardView: View {
         .background(Color(red: 0.12, green: 0.125, blue: 0.14))
     }
     
-    private func tabButton(tab: DashboardTab) -> some View {
-        let isSelected = selectedTab == tab
-        let count = tab == .phoneSync ? store.syncedNotes.count : store.notes.count
-        
-        return Button {
-            withAnimation(.easeInOut(duration: 0.12)) {
-                selectedTab = tab
-            }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                Text(tab.rawValue)
-                    .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundColor(isSelected ? .white : Color.white.opacity(0.5))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(isSelected ? Color.white.opacity(0.25) : Color.white.opacity(0.08))
-                        .clipShape(Capsule())
-                }
-            }
-            .foregroundColor(isSelected ? .white : Color.white.opacity(0.65))
-            .padding(.horizontal, 11)
-            .padding(.vertical, 4)
-            .background(
-                Group {
-                    if isSelected {
-                        Capsule()
-                            .fill(Color(white: 0.28))
-                            .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
-                    } else {
-                        Color.clear
-                    }
-                }
-            )
-        }
-        .buttonStyle(.plain)
-    }
-    
     // MARK: - Content Area
     private var contentArea: some View {
         let notes = currentNotes
@@ -272,21 +191,10 @@ public struct DashboardView: View {
                             DashboardNoteCard(
                                 note: note,
                                 onFocus: {
-                                    if selectedTab == .phoneSync {
-                                        store.promoteSyncedNoteToDesktop(id: note.id)
-                                    } else {
-                                        StickyWindowManager.shared.focusNote(id: note.id)
-                                    }
+                                    StickyWindowManager.shared.focusNote(id: note.id)
                                 },
                                 onTogglePin: {
-                                    if selectedTab == .phoneSync {
-                                        if let idx = store.syncedNotes.firstIndex(where: { $0.id == note.id }) {
-                                            store.syncedNotes[idx].isPinned.toggle()
-                                            store.requestSave()
-                                        }
-                                    } else {
-                                        store.togglePin(id: note.id)
-                                    }
+                                    store.togglePin(id: note.id)
                                 }
                             )
                         }
@@ -303,68 +211,7 @@ public struct DashboardView: View {
         VStack(spacing: 12) {
             Spacer()
             
-            if selectedTab == .phoneSync {
-                Image(systemName: "iphone.radiowaves.left.and.right")
-                    .font(.system(size: 38, weight: .light))
-                    .foregroundColor(Color.white.opacity(0.35))
-                
-                Text("Phone Sync")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color.white.opacity(0.85))
-                
-                Text("Connect your phone on the same Wi-Fi network to sync stickies seamlessly.")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 280)
-                
-                if !syncServer.isRunning {
-                    Button("Turn On Wi-Fi Sync") {
-                        store.settings.wifiSyncEnabled = true
-                        store.requestSave()
-                        syncServer.start()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.20, green: 0.55, blue: 0.95))
-                    .padding(.top, 4)
-                } else {
-                    VStack(spacing: 8) {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(syncServer.activeConnectionCount > 0 ? Color.green : Color(red: 0.20, green: 0.55, blue: 0.95))
-                                .frame(width: 6, height: 6)
-                            Text(syncServer.activeConnectionCount > 0
-                                 ? "Connected: \(syncServer.connectedDeviceNames.first ?? "Phone")"
-                                 : "Listening on Port \(syncServer.localPort) (_notenote-sync._tcp)")
-                                .font(.system(size: 11))
-                                .foregroundColor(Color.white.opacity(0.6))
-                        }
-                        
-                        Button {
-                            syncServer.triggerSync()
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .rotationEffect(.degrees(syncServer.isSyncing ? 360 : 0))
-                                    .animation(syncServer.isSyncing ? Animation.linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: syncServer.isSyncing)
-                                Text(syncServer.isSyncing ? "Syncing..." : "Sync Notes Now")
-                                    .font(.system(size: 12, weight: .semibold))
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 0.16, green: 0.62, blue: 0.42))
-                        .padding(.top, 4)
-                        
-                        if let lastSync = syncServer.lastSyncDate {
-                            Text("Last synced \(lastSync.relativeTimeString)")
-                                .font(.system(size: 10))
-                                .foregroundColor(Color.white.opacity(0.4))
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-            } else if !searchQuery.isEmpty {
+            if !searchQuery.isEmpty {
                 Image(systemName: "doc.text.magnifyingglass")
                     .font(.system(size: 36, weight: .light))
                     .foregroundColor(Color.white.opacity(0.3))

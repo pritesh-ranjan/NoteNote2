@@ -120,6 +120,7 @@ public struct StickyNoteView: View {
                     fontSize: note.fontSize,
                     noteColor: note.wrappedValue.color,
                     onContentChanged: {
+                        note.wrappedValue.updatedAt = Date()
                         store.requestSave()
                     }
                 )
