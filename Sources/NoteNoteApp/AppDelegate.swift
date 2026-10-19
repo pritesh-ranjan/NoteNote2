@@ -38,6 +38,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
+        // Start Local Wi-Fi Sync Server if enabled in preferences
+        if NotesStore.shared.settings.wifiSyncEnabled {
+            LocalSyncServer.shared.start()
+        }
+        
         if CommandLine.arguments.contains("--show-settings") {
             SettingsWindowController.shared.show()
         }
@@ -52,6 +57,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if CommandLine.arguments.contains("--show-search") {
             SearchNotesWindowController.shared.show()
+        }
+        if CommandLine.arguments.contains("--show-dashboard") {
+            DashboardWindowController.shared.show()
         }
         if CommandLine.arguments.contains("--show-trash") {
             TrashWindowController.shared.show()
@@ -92,6 +100,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--demo-search") {
             DemoRecordingService.shared.runSearchDemo()
         }
+        if CommandLine.arguments.contains("--test-sync") {
+            SyncVerificationService.shared.runVerificationTest()
+        }
     }
     
     public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -105,6 +116,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     public func applicationWillTerminate(_ notification: Notification) {
+        LocalSyncServer.shared.stop()
         NotesStore.shared.requestSave()
     }
     

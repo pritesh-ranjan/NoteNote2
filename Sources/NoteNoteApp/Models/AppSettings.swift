@@ -11,6 +11,8 @@ public struct AppSettings: Codable {
     public var autoInstallUpdates: Bool
     public var lastUpdateCheckDate: Date?
     public var ignoredUpdateVersion: String?
+    public var wifiSyncEnabled: Bool
+    public var wifiSyncPort: UInt16
     
     public init(
         defaultColor: NoteColor = .yellow,
@@ -22,7 +24,9 @@ public struct AppSettings: Codable {
         autoCheckForUpdates: Bool = true,
         autoInstallUpdates: Bool = false,
         lastUpdateCheckDate: Date? = nil,
-        ignoredUpdateVersion: String? = nil
+        ignoredUpdateVersion: String? = nil,
+        wifiSyncEnabled: Bool = false,
+        wifiSyncPort: UInt16 = 52849
     ) {
         self.defaultColor = defaultColor
         self.defaultHideFromScreenCapture = defaultHideFromScreenCapture
@@ -34,12 +38,15 @@ public struct AppSettings: Codable {
         self.autoInstallUpdates = autoInstallUpdates
         self.lastUpdateCheckDate = lastUpdateCheckDate
         self.ignoredUpdateVersion = ignoredUpdateVersion
+        self.wifiSyncEnabled = wifiSyncEnabled
+        self.wifiSyncPort = wifiSyncPort
     }
     
     enum CodingKeys: String, CodingKey {
         case defaultColor, defaultHideFromScreenCapture, defaultPinned
         case showInDock, playSounds, defaultDockEdge
         case autoCheckForUpdates, autoInstallUpdates, lastUpdateCheckDate, ignoredUpdateVersion
+        case wifiSyncEnabled, wifiSyncPort
     }
     
     public init(from decoder: Decoder) throws {
@@ -54,6 +61,8 @@ public struct AppSettings: Codable {
         self.autoInstallUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoInstallUpdates) ?? false
         self.lastUpdateCheckDate = try container.decodeIfPresent(Date.self, forKey: .lastUpdateCheckDate)
         self.ignoredUpdateVersion = try container.decodeIfPresent(String.self, forKey: .ignoredUpdateVersion)
+        self.wifiSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .wifiSyncEnabled) ?? false
+        self.wifiSyncPort = try container.decodeIfPresent(UInt16.self, forKey: .wifiSyncPort) ?? 52849
     }
     
     public static let `default` = AppSettings(
@@ -66,6 +75,8 @@ public struct AppSettings: Codable {
         autoCheckForUpdates: true,
         autoInstallUpdates: false,
         lastUpdateCheckDate: nil,
-        ignoredUpdateVersion: nil
+        ignoredUpdateVersion: nil,
+        wifiSyncEnabled: false,
+        wifiSyncPort: 52849
     )
 }

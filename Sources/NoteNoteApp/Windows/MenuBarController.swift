@@ -47,7 +47,18 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         newNoteItem.keyEquivalentModifierMask = [.command]
         newNoteItem.target = self
         menu.addItem(newNoteItem)
-            // 2. Quick Add Sticky (Spotlight HUD)
+        
+        // 1b. Notes Dashboard
+        let dashboardItem = NSMenuItem(
+            title: "Notes Dashboard...",
+            action: #selector(openDashboardAction),
+            keyEquivalent: "d"
+        )
+        dashboardItem.keyEquivalentModifierMask = [.command]
+        dashboardItem.target = self
+        menu.addItem(dashboardItem)
+        
+        // 2. Quick Add Sticky (Spotlight HUD)
         let quickAddItem = NSMenuItem(
             title: "Quick Add Sticky...",
             action: #selector(quickAddAction),
@@ -199,6 +210,10 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
     }
     
     // MARK: - Actions
+    @objc private func openDashboardAction() {
+        DashboardWindowController.shared.show()
+    }
+    
     @objc private func searchAction() {
         SearchNotesWindowController.shared.show()
     }

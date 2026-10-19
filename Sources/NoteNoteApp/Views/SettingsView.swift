@@ -4,6 +4,7 @@ public struct SettingsView: View {
     @StateObject private var store = NotesStore.shared
     @ObservedObject private var startupService = StartupService.shared
     @ObservedObject private var updateService = UpdateService.shared
+    @ObservedObject private var syncServer = LocalSyncServer.shared
     @State private var selectedTab: Int
     private let scrollToGestures: Bool
     
@@ -114,6 +115,133 @@ public struct SettingsView: View {
                             .toggleStyle(.switch)
                             .tint(.blue)
                             .labelsHidden()
+                        }
+                    }
+                }
+                
+                // Section 1b: Android Wi-Fi Sync
+                settingsSection(title: "Android Wi-Fi Sync") {
+                    VStack(spacing: 0) {
+                        settingRow(
+                            title: "Background Wi-Fi Sync Server",
+                            subtitle: "Accept and send notes with your Android phone over the same local Wi-Fi network"
+                        ) {
+                            Toggle("", isOn: Binding(
+                                get: { store.settings.wifiSyncEnabled },
+                                set: { enabled in
+                                    store.settings.wifiSyncEnabled = enabled
+                                    store.requestSave()
+                                    if enabled {
+                                        syncServer.start()
+                                    } else {
+                                        syncServer.stop()
+                                    }
+                                }
+                            ))
+                            .toggleStyle(.switch)
+                            .tint(.blue)
+                            .labelsHidden()
+                        }
+                        
+                        if store.settings.wifiSyncEnabled {
+                            Divider().padding(.leading, 14)
+                            
+                            settingRow(
+                                title: "Server Status",
+                                subtitle: syncServer.isRunning
+                                    ? "Listening for Android on ws://\(syncServer.localIPAddresses.first ?? "localhost"):\(syncServer.localPort) (_notenote-sync._tcp)"
+                                    : "Starting..."
+                            ) {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(syncServer.isRunning ? Color.green : Color.orange)
+                                        .frame(width: 8, height: 8)
+                                    Text(syncServer.isRunning ? "Online" : "Starting")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(syncServer.isRunning ? .green : .orange)
+                                }
+                            }
+                            
+                            if let session = syncServer.activePairingSession {
+                                Divider().padding(.leading, 14)
+                                
+                                HStack(alignment: .center, spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Active Pairing Request")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text("\(session.deviceName) — Code: \(session.sixDigitCode)")
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundColor(Color.cyan)
+                                    }
+                                    Spacer()
+                                    Button("View Prompt") {
+                                        PairingConfirmationWindowController.shared.present(session: session) { _ in }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.blue.opacity(0.12))
+                            }
+                            
+                            Divider().padding(.leading, 14)
+                            
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("PAIRED ANDROID DEVICES (\(store.pairedDevices.count))")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(Color.white.opacity(0.45))
+                                    Spacer()
+                                    if !store.pairedDevices.isEmpty {
+                                        Button("Forget All") {
+                                            store.removeAllPairedDevices()
+                                        }
+                                        .buttonStyle(.plain)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(Color.red.opacity(0.8))
+                                    }
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.top, 8)
+                                
+                                if store.pairedDevices.isEmpty {
+                                    Text("No devices paired yet. Open the NoteNote companion app on Android while on this Wi-Fi network to pair.")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color.white.opacity(0.5))
+                                        .padding(.horizontal, 14)
+                                        .padding(.bottom, 8)
+                                } else {
+                                    ForEach(store.pairedDevices) { dev in
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "iphone")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(Color(red: 0.35, green: 0.75, blue: 1.0))
+                                            
+                                            VStack(alignment: .leading, spacing: 1) {
+                                                Text(dev.name)
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .foregroundColor(.white)
+                                                Text("Last seen \(dev.lastSeenAt.relativeTimeString)")
+                                                    .font(.system(size: 10))
+                                                    .foregroundColor(Color.white.opacity(0.45))
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            Button("Forget") {
+                                                store.removePairedDevice(id: dev.id)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.mini)
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 4)
+                                    }
+                                    .padding(.bottom, 6)
+                                }
+                            }
                         }
                     }
                 }
@@ -439,6 +567,12 @@ public struct SettingsView: View {
                                 label: "New Sticky Note",
                                 keys: ["⌘", "N"],
                                 desc: "Create a new note when NoteNote menu is open"
+                            )
+                            Divider().padding(.leading, 14)
+                            shortcutRow(
+                                label: "Notes Dashboard",
+                                keys: ["⌘", "D"],
+                                desc: "Open all-in-one Notes Dashboard with app bindings & status"
                             )
                             Divider().padding(.leading, 14)
                             shortcutRow(

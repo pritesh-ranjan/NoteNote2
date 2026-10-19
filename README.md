@@ -34,6 +34,7 @@ Lives in your **menu bar** with zero Dock clutter, stays floating over fullscree
 
 ## Key Features
 
+- 🗂️ **Notes Dashboard (`⌘D`)** — Centralized hub with Apple-style frosted glass UI and Antinote design language. View all active notes, inspect linked macOS apps & live statuses, check off tasks, and quick-launch Search HUD, Trash Recovery, and Preferences.
 - 📸 **Capture Screen as Sticky (`⌘⌥S`)** — Select any screen region with macOS's native interactive crosshairs; instantly spawns a new sticky note with the screenshot attached and focused for immediate typing.
 - 🖼️ **Image Attachments & macOS Preview** — Drag & drop or paste images into any note. A clean, compact thumbnail strip keeps your notes neat. Click any thumbnail to view full-size in macOS Preview.
 - 🤖 **On-Device Apple Vision OCR** — Drag, paste, or right-click images and choose **Paste Image Text (Vision OCR)** to extract text locally using Apple's Neural Engine. Zero cloud pings, 100% private.
@@ -113,6 +114,7 @@ Lives in your **menu bar** with zero Dock clutter, stays floating over fullscree
 
 | Shortcut / Gesture | Action | Scope |
 | :--- | :--- | :--- |
+| `⌘ D` | **Open Notes Dashboard** | Global / Menu Bar |
 | `⌘ P` | **Pin / Unpin (Always on Top)** | Active Note Window |
 | `⌘ L` | **Lock / Unlock (Touch ID)** | Active Note Window |
 | `Swipe from Up` *(or 3-finger down)* | **Open Spotlight Search HUD** | Active Note Window |
