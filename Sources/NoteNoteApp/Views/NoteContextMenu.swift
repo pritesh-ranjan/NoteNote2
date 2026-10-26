@@ -358,6 +358,15 @@ private final class CustomMenuView: NSView {
     var menuProvider: (() -> NSMenu?)?
     
     override func menu(for event: NSEvent) -> NSMenu? {
+        if let window = self.window,
+           let cv = window.contentView,
+           let tv = cv.findStickyTextView() {
+            let pointInTv = tv.convert(event.locationInWindow, from: nil)
+            let charIndex = tv.characterIndexForInsertion(at: pointInTv)
+            if tv.selectedRange().length == 0 {
+                tv.setSelectedRange(NSRange(location: charIndex, length: 0))
+            }
+        }
         return menuProvider?()
     }
     
@@ -524,7 +533,24 @@ public final class NoteBodyContextMenu {
             menu.addItem(NSMenuItem.separator())
         }
         
-        // 2. Text editing items if invoked inside a text view
+        // 2. Add To-Do Item
+        let todoItem = NSMenuItem(
+            title: "Add To-Do",
+            action: #selector(handler.addTodoAction(_:)),
+            keyEquivalent: "t"
+        )
+        todoItem.keyEquivalentModifierMask = [.command, .shift]
+        let todoConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        todoItem.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: nil)?.withSymbolConfiguration(todoConfig)
+            ?? NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: nil)?.withSymbolConfiguration(todoConfig)
+        todoItem.representedObject = noteId
+        todoItem.target = handler
+        todoItem.isEnabled = !note.isLocked
+        menu.addItem(todoItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // 3. Text editing items if invoked inside a text view
         if let tv = targetTextView {
             let undoItem = NSMenuItem(title: "Undo", action: #selector(tv.undoManager?.undo), keyEquivalent: "z")
             undoItem.target = tv.undoManager
@@ -725,6 +751,36 @@ final class NoteMenuActionHandler: NSObject {
     @objc func deleteNoteAction(_ sender: NSMenuItem) {
         guard let noteId = sender.representedObject as? UUID else { return }
         NotesStore.shared.deleteNote(id: noteId)
+    }
+    
+    @objc func addTodoAction(_ sender: NSMenuItem) {
+        guard let noteId = sender.representedObject as? UUID else { return }
+        
+        // 1. If active panel has a StickyTextView, invoke toggleOrInsertTodo directly
+        if let panel = StickyWindowManager.shared.panel(for: noteId),
+           let cv = panel.contentView,
+           let tv = cv.findStickyTextView() {
+            panel.makeKey()
+            panel.makeFirstResponder(tv)
+            tv.toggleOrInsertTodo()
+            return
+        }
+        
+        // 2. Fallback to Store
+        if let idx = NotesStore.shared.notes.firstIndex(where: { $0.id == noteId }) {
+            var content = NotesStore.shared.notes[idx].content
+            if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                content = "- [ ] "
+            } else if content.hasSuffix("\n") {
+                content += "- [ ] "
+            } else {
+                content += "\n- [ ] "
+            }
+            NotesStore.shared.notes[idx].content = content
+            NotesStore.shared.notes[idx].updatedAt = Date()
+            NotesStore.shared.requestSave()
+        }
+        StickyWindowManager.shared.focusNote(id: noteId)
     }
     
     @objc func captureScreenAction(_ sender: NSMenuItem) {

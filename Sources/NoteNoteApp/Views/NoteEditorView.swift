@@ -589,6 +589,11 @@ public final class StickyTextView: NSTextView {
                     return true
                 }
             }
+            // 17. Toggle / Add To-Do Item (⌘T, ⇧⌘T, or ⇧⌘C)
+            if key == "t" || (key == "c" && isShift) {
+                self.toggleOrInsertTodo()
+                return true
+            }
         }
         return super.performKeyEquivalent(with: event)
     }
@@ -895,8 +900,8 @@ public final class StickyTextView: NSTextView {
         let fullText = self.string as NSString
         
         if charIndex < fullText.length {
-            let start = max(0, charIndex - 4)
-            let end = min(fullText.length, charIndex + 4)
+            let start = max(0, charIndex - 6)
+            let end = min(fullText.length, charIndex + 6)
             let searchRange = NSRange(location: start, length: end - start)
             let slice = fullText.substring(with: searchRange)
             
@@ -907,7 +912,7 @@ public final class StickyTextView: NSTextView {
                 if let layoutManager = self.layoutManager, let textContainer = self.textContainer {
                     let glyphRange = layoutManager.glyphRange(forCharacterRange: tokenRange, actualCharacterRange: nil)
                     let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-                    let paddedRect = rect.insetBy(dx: -4, dy: -4)
+                    let paddedRect = rect.insetBy(dx: -8, dy: -6)
                     if paddedRect.contains(point) {
                         let currentToken = fullText.substring(with: tokenRange)
                         let toggled = currentToken.contains(" ") ? "[x]" : "[ ]"
@@ -987,6 +992,132 @@ public final class StickyTextView: NSTextView {
             return img
         }
         
+        return nil
+    }
+    
+    // MARK: - Toggle or Insert To-Do Item
+    public func toggleOrInsertTodo() {
+        let sel = self.selectedRange()
+        let currentString = self.string as NSString
+        
+        // 1. If text is selected across one or more lines:
+        if sel.length > 0 {
+            let fullRange = currentString.lineRange(for: sel)
+            let selectedBlock = currentString.substring(with: fullRange)
+            let lines = selectedBlock.components(separatedBy: "\n")
+            
+            let nonEmptyLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let allAreChecklists = !nonEmptyLines.isEmpty && nonEmptyLines.allSatisfy { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                return trimmed.hasPrefix("- [ ]") || trimmed.hasPrefix("- [x]") || trimmed.hasPrefix("- [X]") ||
+                       trimmed.hasPrefix("* [ ]") || trimmed.hasPrefix("* [x]") || trimmed.hasPrefix("* [X]")
+            }
+            
+            let transformedLines = lines.map { line -> String in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty { return line }
+                
+                if allAreChecklists {
+                    var clean = line
+                    for prefix in ["- [ ] ", "- [x] ", "- [X] ", "* [ ] ", "* [x] ", "* [X] ", "- [ ]", "- [x]", "- [X]", "* [ ]", "* [x]"] {
+                        if let r = clean.range(of: prefix) {
+                            clean.removeSubrange(r)
+                            break
+                        }
+                    }
+                    return clean
+                } else {
+                    if trimmed.hasPrefix("- [ ]") || trimmed.hasPrefix("- [x]") || trimmed.hasPrefix("- [X]") ||
+                       trimmed.hasPrefix("* [ ]") || trimmed.hasPrefix("* [x]") || trimmed.hasPrefix("* [X]") {
+                        return line
+                    }
+                    let leadingSpaces = line.prefix(while: { $0 == " " || $0 == "\t" })
+                    let rest = line.dropFirst(leadingSpaces.count)
+                    return "\(leadingSpaces)- [ ] \(rest)"
+                }
+            }
+            
+            let replacement = transformedLines.joined(separator: "\n")
+            if self.shouldChangeText(in: fullRange, replacementString: replacement) {
+                self.replaceCharacters(in: fullRange, with: replacement)
+                self.didChangeText()
+                self.setSelectedRange(NSRange(location: fullRange.location, length: (replacement as NSString).length))
+                renderMarkdown()
+                notifyTextDidChange()
+            }
+            return
+        }
+        
+        // 2. Note is completely empty
+        if currentString.length == 0 {
+            let replacement = "- [ ] "
+            if self.shouldChangeText(in: NSRange(location: 0, length: 0), replacementString: replacement) {
+                self.replaceCharacters(in: NSRange(location: 0, length: 0), with: replacement)
+                self.didChangeText()
+                self.setSelectedRange(NSRange(location: replacement.count, length: 0))
+                renderMarkdown()
+                notifyTextDidChange()
+            }
+            return
+        }
+        
+        // 3. Cursor is placed on a line
+        let cursorLoc = min(sel.location, currentString.length)
+        let lineRange = currentString.lineRange(for: NSRange(location: cursorLoc, length: 0))
+        let lineText = currentString.substring(with: lineRange)
+        let trimmedLine = lineText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if trimmedLine.isEmpty {
+            let replacement = lineText.hasSuffix("\n") ? "- [ ] \n" : "- [ ] "
+            if self.shouldChangeText(in: lineRange, replacementString: replacement) {
+                self.replaceCharacters(in: lineRange, with: replacement)
+                self.didChangeText()
+                self.setSelectedRange(NSRange(location: lineRange.location + 6, length: 0))
+                renderMarkdown()
+                notifyTextDidChange()
+            }
+        } else if trimmedLine.hasPrefix("- [ ]") || trimmedLine.hasPrefix("- [x]") || trimmedLine.hasPrefix("- [X]") ||
+                  trimmedLine.hasPrefix("* [ ]") || trimmedLine.hasPrefix("* [x]") || trimmedLine.hasPrefix("* [X]") {
+            // Line already has a to-do item: insert a new to-do line
+            let hasTrailingNewline = lineText.hasSuffix("\n")
+            let insertLocation = lineRange.location + lineRange.length - (hasTrailingNewline ? 1 : 0)
+            let insertion = "\n- [ ] "
+            let targetRange = NSRange(location: insertLocation, length: 0)
+            if self.shouldChangeText(in: targetRange, replacementString: insertion) {
+                self.replaceCharacters(in: targetRange, with: insertion)
+                self.didChangeText()
+                self.setSelectedRange(NSRange(location: targetRange.location + insertion.count, length: 0))
+                renderMarkdown()
+                notifyTextDidChange()
+            }
+        } else {
+            // Line has non-checklist text: convert it to a to-do item
+            let leadingSpaces = lineText.prefix(while: { $0 == " " || $0 == "\t" })
+            let rest = lineText.dropFirst(leadingSpaces.count)
+            let replacement = "\(leadingSpaces)- [ ] \(rest)"
+            if self.shouldChangeText(in: lineRange, replacementString: replacement) {
+                self.replaceCharacters(in: lineRange, with: replacement)
+                self.didChangeText()
+                let newCursor = min((self.string as NSString).length, cursorLoc + 6)
+                self.setSelectedRange(NSRange(location: newCursor, length: 0))
+                renderMarkdown()
+                notifyTextDidChange()
+            }
+        }
+    }
+}
+
+// MARK: - View Extension to locate StickyTextView
+extension NSView {
+    public func findStickyTextView() -> StickyTextView? {
+        if let stv = self as? StickyTextView {
+            return stv
+        }
+        for sub in subviews {
+            if let found = sub.findStickyTextView() {
+                return found
+            }
+        }
         return nil
     }
 }
