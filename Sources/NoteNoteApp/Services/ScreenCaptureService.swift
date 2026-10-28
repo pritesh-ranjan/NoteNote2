@@ -59,6 +59,69 @@ public final class ScreenCaptureService {
     /// Launches interactive macOS screen capture (`screencapture -i`).
     /// On successful capture, creates a new sticky note with the screenshot attached and brings it to focus.
     public func captureScreenInteractive() {
+        performInteractiveCapture { capturedImage in
+            // If stickies were hidden, show them
+            if NotesStore.shared.areAllNotesHidden {
+                NotesStore.shared.areAllNotesHidden = false
+            }
+            
+            let timeString = Date().formatted(date: .omitted, time: .shortened)
+            let newNote = NotesStore.shared.createNote(
+                title: "Screen Capture • \(timeString)",
+                content: ""
+            )
+            
+            StickyWindowManager.shared.focusNote(id: newNote.id)
+            AppLogger.info("Created new sticky note \(newNote.id) from screen capture, presenting image action menu")
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                let panel = StickyWindowManager.shared.panel(for: newNote.id)
+                    ?? NSApp.windows.first(where: { ($0 as? StickyPanel)?.noteId == newNote.id }) as? StickyPanel
+                guard let activePanel = panel, let contentView = activePanel.contentView else {
+                    NotesStore.shared.addImageAttachment(to: newNote.id, image: capturedImage)
+                    return
+                }
+                
+                let location = NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
+                NoteBodyContextMenu.showImageActionMenu(
+                    for: capturedImage,
+                    noteId: newNote.id,
+                    at: location,
+                    in: contentView,
+                    headerTitle: "Screen Capture"
+                ) {
+                    // User cancelled menu: clean up empty placeholder note
+                    if let note = NotesStore.shared.notes.first(where: { $0.id == newNote.id }),
+                       note.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       note.imageAttachments.isEmpty {
+                        NotesStore.shared.deleteNote(id: newNote.id)
+                        AppLogger.info("Cancelled screen capture sticky note \(newNote.id)")
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Launches interactive macOS screen capture (`screencapture -i`),
+    /// runs Vision OCR on the captured region, and copies any detected text to the system clipboard.
+    public func copyScreenTextInteractive() {
+        performInteractiveCapture { capturedImage in
+            VisionOCRService.shared.recognizeText(from: capturedImage) { recognizedText in
+                guard let text = recognizedText, !text.isEmpty else {
+                    AppLogger.info("Copy Screen Text: no text recognized from screen capture")
+                    NSSound.beep()
+                    return
+                }
+                
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+                AppLogger.info("Copy Screen Text: copied \(text.count) characters to clipboard")
+            }
+        }
+    }
+    
+    private func performInteractiveCapture(completion: @escaping @MainActor (NSImage) -> Void) {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("screencapture_\(UUID().uuidString).png")
         
         let process = Process()
@@ -80,45 +143,7 @@ public final class ScreenCaptureService {
                     return
                 }
                 
-                // If stickies were hidden, show them
-                if NotesStore.shared.areAllNotesHidden {
-                    NotesStore.shared.areAllNotesHidden = false
-                }
-                
-                let timeString = Date().formatted(date: .omitted, time: .shortened)
-                let newNote = NotesStore.shared.createNote(
-                    title: "Screen Capture • \(timeString)",
-                    content: ""
-                )
-                
-                StickyWindowManager.shared.focusNote(id: newNote.id)
-                AppLogger.info("Created new sticky note \(newNote.id) from screen capture, presenting image action menu")
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    let panel = StickyWindowManager.shared.panel(for: newNote.id)
-                        ?? NSApp.windows.first(where: { ($0 as? StickyPanel)?.noteId == newNote.id }) as? StickyPanel
-                    guard let activePanel = panel, let contentView = activePanel.contentView else {
-                        NotesStore.shared.addImageAttachment(to: newNote.id, image: capturedImage)
-                        return
-                    }
-                    
-                    let location = NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY)
-                    NoteBodyContextMenu.showImageActionMenu(
-                        for: capturedImage,
-                        noteId: newNote.id,
-                        at: location,
-                        in: contentView,
-                        headerTitle: "Screen Capture"
-                    ) {
-                        // User cancelled menu: clean up empty placeholder note
-                        if let note = NotesStore.shared.notes.first(where: { $0.id == newNote.id }),
-                           note.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                           note.imageAttachments.isEmpty {
-                            NotesStore.shared.deleteNote(id: newNote.id)
-                            AppLogger.info("Cancelled screen capture sticky note \(newNote.id)")
-                        }
-                    }
-                }
+                completion(capturedImage)
             }
         }
         

@@ -77,6 +77,15 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         captureItem.target = self
         menu.addItem(captureItem)
         
+        // 2c. Copy Screen Text
+        let copyScreenTextItem = NSMenuItem(
+            title: "Copy Screen Text",
+            action: #selector(copyScreenTextAction),
+            keyEquivalent: ""
+        )
+        copyScreenTextItem.target = self
+        menu.addItem(copyScreenTextItem)
+        
         // 3. Search Notes (Spotlight Search HUD)
         let searchItem = NSMenuItem(
             title: "Search Notes...",
@@ -236,6 +245,10 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func captureScreenAction() {
         ScreenCaptureService.shared.captureScreenInteractive()
+    }
+
+    @objc private func copyScreenTextAction() {
+        ScreenCaptureService.shared.copyScreenTextInteractive()
     }
 
     
