@@ -4,6 +4,8 @@ public struct SettingsView: View {
     @StateObject private var store = NotesStore.shared
     @ObservedObject private var startupService = StartupService.shared
     @ObservedObject private var updateService = UpdateService.shared
+    @ObservedObject private var hotkeyService = GlobalHotkeyService.shared
+    @ObservedObject private var typerService = ClipboardTyperService.shared
     @State private var selectedTab: Int
     private let scrollToGestures: Bool
     
@@ -367,6 +369,100 @@ public struct SettingsView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
+                    // 0. Global Type Clipboard
+                    settingsSection(title: "Type Clipboard (Global)") {
+                        VStack(alignment: .leading, spacing: 0) {
+                            settingRow(
+                                title: "Enable Type Clipboard",
+                                subtitle: "Type the latest clipboard text via keystrokes into any focused field"
+                            ) {
+                                Toggle("", isOn: $store.settings.typeClipboardEnabled)
+                                    .toggleStyle(.switch)
+                                    .tint(.blue)
+                                    .labelsHidden()
+                                    .onChange(of: store.settings.typeClipboardEnabled) { _, _ in
+                                        store.requestSave()
+                                        hotkeyService.syncWithSettings()
+                                    }
+                            }
+
+                            Divider().padding(.leading, 14)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                settingRow(
+                                    title: "Global Shortcut",
+                                    subtitle: "Press anywhere to type clipboard text (press Esc or shortcut again to stop)"
+                                ) {
+                                    ShortcutRecorderView(
+                                        shortcut: $store.settings.typeClipboardShortcut,
+                                        defaultShortcut: .defaultTypeClipboard
+                                    ) { _ in
+                                        store.requestSave()
+                                        hotkeyService.syncWithSettings()
+                                    }
+                                }
+
+                                if let error = hotkeyService.registrationError {
+                                    Text(error)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 14)
+                                        .padding(.bottom, 8)
+                                }
+                            }
+
+                            Divider().padding(.leading, 14)
+
+                            settingRow(
+                                title: "Typing Speed",
+                                subtitle: "Use Slow for VMs, remote desktops, or strict web inputs"
+                            ) {
+                                Picker("", selection: $store.settings.typeClipboardSpeed) {
+                                    ForEach(TypingSpeed.allCases) { speed in
+                                        Text(speed.displayName).tag(speed)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 170)
+                                .onChange(of: store.settings.typeClipboardSpeed) { _, _ in
+                                    store.requestSave()
+                                }
+                            }
+
+                            Divider().padding(.leading, 14)
+
+                            settingRow(
+                                title: "Accessibility Permission",
+                                subtitle: "Required by macOS to send simulated keystrokes"
+                            ) {
+                                if typerService.isAccessibilityGranted {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 11))
+                                        Text("Granted")
+                                            .font(.system(size: 11, weight: .medium))
+                                    }
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.green.opacity(0.14))
+                                    .cornerRadius(6)
+                                } else {
+                                    HStack(spacing: 8) {
+                                        Text("Required")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.orange)
+                                        Button("Grant Access") {
+                                            typerService.promptForAccessibilityPermission()
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // 1. Active Sticky Note Window Shortcuts
                     settingsSection(title: "Active Note Window Shortcuts") {
                         VStack(spacing: 0) {
@@ -465,11 +561,15 @@ public struct SettingsView: View {
                 .padding(.bottom, 18)
             }
             .onAppear {
+                typerService.refreshAccessibilityStatus()
                 if scrollToGestures {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         proxy.scrollTo("gesturesSection", anchor: .top)
                     }
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                typerService.refreshAccessibilityStatus()
             }
         }
     }

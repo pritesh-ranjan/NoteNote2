@@ -23,6 +23,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start app watcher for app-aware notes
         AppWatcherService.shared.startObserving()
         
+        // Start global shortcut listener (Type Clipboard)
+        GlobalHotkeyService.shared.start()
+        
         // Ensure stickies are front and visible on launch
         StickyWindowManager.shared.bringAllToFront()
         
@@ -108,6 +111,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     public func applicationWillTerminate(_ notification: Notification) {
+        ClipboardTyperService.shared.cancelTyping(reason: "App terminating")
+        GlobalHotkeyService.shared.stop()
         NotesStore.shared.requestSave()
     }
     
